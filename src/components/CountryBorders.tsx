@@ -138,6 +138,7 @@
 
 
 
+// CountryBorders.tsx (without @react-three/drei)
 import * as THREE from "three";
 import { useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -165,7 +166,7 @@ export function CountryBorders() {
         const fillMeshes: CountryMesh[] = [];
         const lineGeoms: { geometry: THREE.BufferGeometry; position: THREE.Vector3 }[] = [];
 
-        const processPolygon = (polygon: number[][]) => {
+        const processPolygon = (polygon: [number, number][]) => { // Fix type annotation
           // Border line geometry
           const borderPoints = polygon.map(([lon, lat]) => {
             const { x, y, z } = latLonToVector3(lat, lon, 2.0);
@@ -188,9 +189,9 @@ export function CountryBorders() {
           const coords = feature.geometry.coordinates;
 
           if (type === "Polygon") {
-            coords.forEach((polygon: number[][]) => processPolygon(polygon));
+            coords.forEach((polygon: [number, number][]) => processPolygon(polygon)); // Fix type assertion
           } else if (type === "MultiPolygon") {
-            coords.forEach((multiPolygon: number[][][]) =>
+            coords.forEach((multiPolygon: [number, number][][]) => // Fix type assertion
               multiPolygon.forEach((polygon) => processPolygon(polygon))
             );
           }
@@ -205,13 +206,13 @@ export function CountryBorders() {
   useFrame(() => {
     const camDir = camera.position.clone().normalize();
     fillRefs.current.forEach((mesh, i) => {
-      if (mesh) {
+      if (mesh && fills[i]) {
         const countryDir = fills[i].position.clone().normalize();
         mesh.visible = camDir.dot(countryDir) > 0.4; // visible if on the near side
       }
     });
     lineRefs.current.forEach((line, i) => {
-      if (line) {
+      if (line && lines[i]) {
         const countryDir = lines[i].position.clone().normalize();
         line.visible = camDir.dot(countryDir) > 0.5;
       }
@@ -241,17 +242,15 @@ export function CountryBorders() {
         </mesh>
       ))}
 
-      {/* Border lines */}
+      {/* Border lines using primitive */}
       {lines.map((line, index) => (
-        <line
+        <primitive
           key={`line-${index}`}
-          geometry={line.geometry}
-          ref={(el) => {
+          object={new THREE.Line(line.geometry, new THREE.LineBasicMaterial({ color: "#ffffff" }))}
+          ref={(el: THREE.Line) => {
             if (el) lineRefs.current[index] = el;
           }}
-        >
-          <lineBasicMaterial color="#ffffff" />
-        </line>
+        />
       ))}
     </>
   );
