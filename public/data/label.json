@@ -1,0 +1,78 @@
+[
+  {
+    "name": "Kuwait",
+    "position": [47.3931, 29.2027]
+  },
+  {
+    "name": "Oman",
+    "position": [56.9774, 20.7977]
+  },
+  {
+    "name": "Qatar",
+    "position": [51.1794, 25.349]
+  },
+  {
+    "name": "Saudi Arabia",
+    "position": [44.552725, 24.265496]
+  },
+  {
+    "name": "UAE",
+    "position": [54.987924, 24.281838]
+  },
+  {
+    "name": "Ethiopia",
+    "position": [38.726391, 9.36203]
+  },
+  {
+    "name": "Kenya",
+    "position": [37.512972, 0.312407]
+  },
+  {
+    "name": "Tanzania",
+    "position": [34.142064, -6.20783]
+  },
+  {
+    "name": "Uganda",
+    "position": [32.546506, 1.380373]
+  },
+  {
+    "name": "Sudan",
+    "position": [29.615603, 15.277565]
+  },
+  {
+    "name": "India",
+    "position": [79.179059, 21.872206]
+  },
+  {
+    "name": "Pakistan",
+    "position": [70.092628, 30.357656]
+  },
+  {
+    "name": "Turkey",
+    "position": [35.45493, 38.63352]
+  },
+  {
+    "name": "Iran",
+    "position": [54.11824, 32.32604]
+  },
+  {
+    "name": "Iraq",
+    "position": [42.41492, 33.19799]
+  },
+  {
+    "name": "Syria",
+    "position": [38.43673, 35.0931]
+  },
+  {
+    "name": "Jordan",
+    "position": [36.58493, 31.39664]
+  },
+  {
+    "name": "Lebanon",
+    "position": [35.87389, 33.92376]
+  },
+  {
+    "name": "Yemen",
+    "position": [47.12578, 15.87147]
+  }
+]
