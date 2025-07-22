@@ -22,7 +22,7 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <directionalLight position={[5, 5, 5]} intensity={1} />
         <Earth />
-        <OrbitControls zoomSpeed={1} minDistance={2.5} maxDistance={10} />
+        <OrbitControls zoomSpeed={0.2} minDistance={2.5} maxDistance={10} />
         <CountryBorders />
         <CountryLabels />
       </Canvas>
