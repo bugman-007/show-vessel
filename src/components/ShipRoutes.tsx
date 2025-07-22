@@ -14,18 +14,6 @@ interface ShipRoutesProps {
 export function ShipRoutes({ waypoints }: ShipRoutesProps) {
   const radius = 2.05;
 
-  //   useEffect(() => {
-  //     fetch(`/api/routes/${shipId}`)
-  //       .then((res) => res.json())
-  //       .then((data) => {
-  //         const vectors = data.waypoints.map((wp: any) => {
-  //           const pos = latLonToVector3(wp.latitude, wp.longitude, radius);
-  //           return pos;
-  //         });
-  //         setPoints(vectors);
-  //       });
-  //   }, [shipId]);
-
   const routeGeometry = useMemo(() => {
     if (waypoints.length < 2) return null;
     const points = waypoints.map((wp) =>
@@ -38,8 +26,24 @@ export function ShipRoutes({ waypoints }: ShipRoutesProps) {
   if (!routeGeometry) return null;
 
   return (
-    <line geometry={routeGeometry}>
-      <lineBasicMaterial color="#ff0000" linewidth={3} />
-    </line>
+    <primitive
+      object={
+        new THREE.Line(
+          routeGeometry,
+          new THREE.LineBasicMaterial({ color: "#ff0000" })
+        )
+      }
+    />
   );
 }
+//   useEffect(() => {
+//     fetch(`/api/routes/${shipId}`)
+//       .then((res) => res.json())
+//       .then((data) => {
+//         const vectors = data.waypoints.map((wp: any) => {
+//           const pos = latLonToVector3(wp.latitude, wp.longitude, radius);
+//           return pos;
+//         });
+//         setPoints(vectors);
+//       });
+//   }, [shipId]);
