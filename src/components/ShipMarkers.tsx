@@ -60,7 +60,14 @@ export function ShipMarkers() {
         );
       })}
       {selectedShip && (
-        <Html position={selectedShip.position} center>
+        <Html
+          position={[
+            selectedShip.position.x - 0.6,
+            selectedShip.position.y + 0.6,
+            selectedShip.position.z,
+          ]}
+          center
+        >
           <div
             style={{
               opacity: "0.7",
