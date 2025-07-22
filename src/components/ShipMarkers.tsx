@@ -70,7 +70,6 @@ export function ShipMarkers() {
         >
           <div
             style={{
-              opacity: "0.7",
               background: "white",
               padding: "8px",
               borderRadius: "4px",
