@@ -9,7 +9,7 @@ function Earth() {
     <>
       <mesh>
         <sphereGeometry args={[2, 64, 64]} />
-        <meshPhongMaterial color="#49E9FF" transparent={true} opacity={0.3} depthWrite = {true} />
+        <meshPhongMaterial color="#AAFFFF" transparent={true} opacity={0.9} depthWrite = {true} />
       </mesh>
     </>
   );
@@ -22,7 +22,7 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <directionalLight position={[5, 5, 5]} intensity={1} />
         <Earth />
-        <OrbitControls />
+        <OrbitControls zoomSpeed={1} minDistance={2.5} maxDistance={10} />
         <CountryBorders />
         <CountryLabels />
       </Canvas>
