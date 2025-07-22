@@ -28,8 +28,7 @@ export function CountryBorders() {
         const processPolygon = (polygon: [number, number][]) => { // Fix type annotation
           // Border line geometry
           const borderPoints = polygon.map(([lon, lat]) => {
-            const { x, y, z } = latLonToVector3(lat, lon, 2.0);
-            return new THREE.Vector3(x, y, z);
+            return latLonToVector3(lat, lon, 2.0);
           });
           const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPoints);
 
@@ -43,6 +42,7 @@ export function CountryBorders() {
           fillMeshes.push({ geometry: geom, position: centroid });
         };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data.features.forEach((feature: any) => {
           const type = feature.geometry.type;
           const coords = feature.geometry.coordinates;

@@ -63,8 +63,8 @@ export function fixCountryMesh(
   triangles.forEach((tri) => {
     tri.forEach((idx) => {
       const [lon, lat] = resampled[idx];
-      const { x, y, z } = latLonToVector3(lat, lon, radius);
-      positions.push(x, y, z);
+      const position = latLonToVector3(lat, lon, radius);
+      positions.push(position.x, position.y, position.z);
     });
   });
 

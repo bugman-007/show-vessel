@@ -3,6 +3,7 @@ import { OrbitControls } from "@react-three/drei";
 import { CountryLabels } from "./components/CountryLabels";
 import { CountryBorders } from "./components/CountryBorders";
 import "./App.css";
+import { ShipMarkers } from "./components/ShipMarkers";
 
 function Earth() {
   return (
@@ -18,13 +19,14 @@ function Earth() {
 export default function App() {
   return (
     <>
-      <Canvas camera={{ position: [0, 0, 5], fov: 50 }}>
+      <Canvas camera={{ position: [5, 2, -5], fov: 25 }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[5, 5, 5]} intensity={1} />
         <Earth />
         <OrbitControls zoomSpeed={0.2} minDistance={2.5} maxDistance={10} />
         <CountryBorders />
         <CountryLabels />
+        <ShipMarkers />
       </Canvas>
     </>
   );

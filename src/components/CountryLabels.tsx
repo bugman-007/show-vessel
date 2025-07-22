@@ -22,10 +22,9 @@ export function CountryLabels() {
         const newLabels: CountryLabel[] = data.map(
           (item: { name: string; position: [number, number] }) => {
             const [lon, lat] = item.position;
-            const { x, y, z } = latLonToVector3(lat, lon, 2.07);
             return {
               name: item.name,
-              position: new Vector3(x, y, z),
+              position: latLonToVector3(lat, lon, 2.07),
               visible: true,
               rotation: new Euler(0, 0, 0),
             };
