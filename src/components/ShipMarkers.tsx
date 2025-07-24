@@ -10,15 +10,6 @@ import { mockRoute } from "../data/mockRoutes";
 import SkyToView from "./SkyToView";
 
 // Enhanced type definitions
-interface Ship {
-  id: string;
-  lat: number;
-  lon: number;
-  heading: number;
-  speed?: number;
-  route?: string;
-}
-
 interface ShipMesh {
   id: string;
   position: THREE.Vector3;
@@ -27,7 +18,7 @@ interface ShipMesh {
 }
 
 interface ViewState {
-  mode: 'normal' | 'skyview';
+  mode: "normal" | "skyview";
   selectedShip: {
     id: string;
     position: THREE.Vector3;
@@ -45,28 +36,43 @@ interface ShipInfo {
 }
 
 const SHIP_INFO_MAP: Record<string, ShipInfo> = {
-  'SHIP_001': { id: 'MV Ocean Explorer', speed: 18, heading: 135, route: 'Dubai → Mumbai → Singapore' },
-  'SHIP_002': { id: 'SS Atlantic Voyager', speed: 22, heading: 45, route: 'Rotterdam → New York → Miami' },
-  'SHIP_003': { id: 'MS Pacific Dawn', speed: 16, heading: 270, route: 'Tokyo → Los Angeles → Vancouver' },
+  SHIP_001: {
+    id: "MV Ocean Explorer",
+    speed: 18,
+    heading: 135,
+    route: "Dubai → Mumbai → Singapore",
+  },
+  SHIP_002: {
+    id: "SS Atlantic Voyager",
+    speed: 22,
+    heading: 45,
+    route: "Rotterdam → New York → Miami",
+  },
+  SHIP_003: {
+    id: "MS Pacific Dawn",
+    speed: 16,
+    heading: 270,
+    route: "Tokyo → Los Angeles → Vancouver",
+  },
 };
 
 export function ShipMarkers() {
   const ships = useMockShips();
   const { camera, scene } = useThree();
-  const radius = 2.05;
-  
+  const radius = 2.02;
+
   // State management
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [viewState, setViewState] = useState<ViewState>({
-    mode: 'normal',
+    mode: "normal",
     selectedShip: null,
     originalCameraPosition: null,
-    loadedModel: null
+    loadedModel: null,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Refs for cleanup and animation
+
+  // Refs for cleanup and animation - Fixed: Use number instead of NodeJS.Timeout
   const animationRef = useRef<number | null>(null);
   const cameraTransitionRef = useRef<{
     progress: number;
@@ -83,7 +89,7 @@ export function ShipMarkers() {
         const up = new THREE.Vector3(0, -1, 0);
         const dir = pos.clone().normalize();
         const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
-        
+
         return {
           id: ship.id,
           position: pos,
@@ -91,62 +97,71 @@ export function ShipMarkers() {
           heading: ship.heading,
         };
       });
-    } catch (err) {
-      setError('Failed to calculate ship positions');
+    } catch {
+      setError("Failed to calculate ship positions");
       return [];
     }
   }, [ships, radius]);
 
   // Get ship information
   const getShipInfo = useCallback((shipId: string): ShipInfo => {
-    return SHIP_INFO_MAP[shipId] || {
-      id: shipId,
-      speed: 20,
-      heading: 135,
-      route: 'Unknown Route'
-    };
+    return (
+      SHIP_INFO_MAP[shipId] || {
+        id: shipId,
+        speed: 20,
+        heading: 135,
+        route: "Unknown Route",
+      }
+    );
   }, []);
 
   // Handle ship selection
-  const handleShipSelect = useCallback((ship: ShipMesh) => {
-    if (viewState.mode === 'skyview') return;
-    
-    setViewState(prev => ({
-      ...prev,
-      selectedShip: {
-        id: ship.id,
-        position: ship.position,
-        heading: ship.heading,
-      }
-    }));
-  }, [viewState.mode]);
+  const handleShipSelect = useCallback(
+    (ship: ShipMesh) => {
+      if (viewState.mode === "skyview") return;
+
+      setViewState((prev) => ({
+        ...prev,
+        selectedShip: {
+          id: ship.id,
+          position: ship.position,
+          heading: ship.heading,
+        },
+      }));
+    },
+    [viewState.mode]
+  );
 
   // Handle view details
-  const handleViewDetails = useCallback((shipId: string) => {
-    const ship = shipMeshes.find((s) => s.id === shipId);
-    if (!ship) return;
+  const handleViewDetails = useCallback(
+    (shipId: string) => {
+      const ship = shipMeshes.find((s) => s.id === shipId);
+      if (!ship) return;
 
-    setIsLoading(true);
-    setError(null);
-    
-    // Save current camera position
-    const currentCameraPos = camera.position.clone();
-    
-    setViewState({
-      mode: 'skyview',
-      selectedShip: {
-        id: ship.id,
-        position: ship.position,
-        heading: ship.heading,
-      },
-      originalCameraPosition: currentCameraPos,
-      loadedModel: null
-    });
-  }, [shipMeshes, camera]);
+      setIsLoading(true);
+      setError(null);
+
+      // Save current camera position
+      const currentCameraPos = camera.position.clone();
+
+      setViewState({
+        mode: "skyview",
+        selectedShip: {
+          id: ship.id,
+          position: ship.position,
+          heading: ship.heading,
+        },
+        originalCameraPosition: currentCameraPos,
+        loadedModel: null,
+      });
+    },
+    [shipMeshes, camera]
+  );
 
   // Handle close sky-to-view mode
   const handleCloseSkyToView = useCallback(() => {
-    if (!viewState.originalCameraPosition || viewState.mode !== 'skyview') return;
+    if (!viewState.originalCameraPosition || viewState.mode !== "skyview")
+      return;
 
     // Clean up existing model
     if (viewState.loadedModel) {
@@ -155,7 +170,7 @@ export function ShipMarkers() {
         if (child instanceof THREE.Mesh) {
           child.geometry?.dispose();
           if (Array.isArray(child.material)) {
-            child.material.forEach(mat => mat.dispose());
+            child.material.forEach((mat) => mat.dispose());
           } else {
             child.material?.dispose();
           }
@@ -168,25 +183,31 @@ export function ShipMarkers() {
       progress: 0,
       startPos: camera.position.clone(),
       targetPos: viewState.originalCameraPosition.clone(),
-      isAnimating: true
+      isAnimating: true,
     };
 
     // Reset view state
     setViewState({
-      mode: 'normal',
+      mode: "normal",
       selectedShip: null,
       originalCameraPosition: null,
-      loadedModel: null
+      loadedModel: null,
     });
     setIsLoading(false);
     setError(null);
-  }, [viewState.originalCameraPosition, viewState.loadedModel, viewState.mode, camera, scene]);
+  }, [
+    viewState.originalCameraPosition,
+    viewState.loadedModel,
+    viewState.mode,
+    camera,
+    scene,
+  ]);
 
   // Handle model loaded callback
   const handleModelLoaded = useCallback((model: THREE.Mesh) => {
-    setViewState(prev => ({
+    setViewState((prev) => ({
       ...prev,
-      loadedModel: model
+      loadedModel: model,
     }));
     setIsLoading(false);
   }, []);
@@ -199,32 +220,38 @@ export function ShipMarkers() {
 
   // Close ship info panel
   const handleCloseShipInfo = useCallback(() => {
-    setViewState(prev => ({
+    setViewState((prev) => ({
       ...prev,
-      selectedShip: null
+      selectedShip: null,
     }));
   }, []);
 
   // Camera transition animation
   useFrame(() => {
-    if (cameraTransitionRef.current && cameraTransitionRef.current.isAnimating) {
+    if (
+      cameraTransitionRef.current &&
+      cameraTransitionRef.current.isAnimating
+    ) {
       const transition = cameraTransitionRef.current;
       transition.progress += 0.02;
-      
+
       camera.position.lerpVectors(
         transition.startPos,
         transition.targetPos,
         transition.progress
       );
-      
+
       if (viewState.selectedShip) {
         // Calculate elevated ship position for proper camera lookAt
-        const normalDirection = viewState.selectedShip.position.clone().normalize();
-        const elevatedShipPos = viewState.selectedShip.position.clone()
-          .add(normalDirection.multiplyScalar(0.05)); // Same as MODEL_HEIGHT_OFFSET
+        const normalDirection = viewState.selectedShip.position
+          .clone()
+          .normalize();
+        const elevatedShipPos = viewState.selectedShip.position
+          .clone()
+          .add(normalDirection.multiplyScalar(0)); // Same as MODEL_HEIGHT_OFFSET
         camera.lookAt(elevatedShipPos);
       }
-      
+
       if (transition.progress >= 1) {
         camera.position.copy(transition.targetPos);
         cameraTransitionRef.current.isAnimating = false;
@@ -236,8 +263,8 @@ export function ShipMarkers() {
   // Keyboard event handler
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (viewState.mode === 'skyview') {
+      if (event.key === "Escape") {
+        if (viewState.mode === "skyview") {
           handleCloseSkyToView();
         } else if (viewState.selectedShip) {
           handleCloseShipInfo();
@@ -245,9 +272,14 @@ export function ShipMarkers() {
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [viewState.mode, viewState.selectedShip, handleCloseSkyToView, handleCloseShipInfo]);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [
+    viewState.mode,
+    viewState.selectedShip,
+    handleCloseSkyToView,
+    handleCloseShipInfo,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -259,19 +291,21 @@ export function ShipMarkers() {
         scene.remove(viewState.loadedModel);
       }
     };
-  }, []);
+  }, [scene, viewState.loadedModel]); // Fixed: Added dependencies and removed scene from cleanup
 
   // Error display
   if (error) {
     return (
       <Html center>
-        <div style={{
-          background: '#ff4444',
-          color: 'white',
-          padding: '10px',
-          borderRadius: '5px',
-          fontFamily: 'Arial, sans-serif'
-        }}>
+        <div
+          style={{
+            background: "#ff4444",
+            color: "white",
+            padding: "10px",
+            borderRadius: "5px",
+            fontFamily: "Arial, sans-serif",
+          }}
+        >
           Error: {error}
         </div>
       </Html>
@@ -298,7 +332,7 @@ export function ShipMarkers() {
             onClick={() => handleShipSelect(ship)}
           >
             <coneGeometry args={[0.02, 0.05, 8]} />
-            <meshPhongMaterial 
+            <meshPhongMaterial
               color={hoveredId === ship.id ? "#ff6666" : "#ff0000"}
               transparent
               opacity={0.9}
@@ -308,7 +342,7 @@ export function ShipMarkers() {
       })}
 
       {/* Ship Info Panel */}
-      {viewState.selectedShip && viewState.mode === 'normal' && (
+      {viewState.selectedShip && viewState.mode === "normal" && (
         <Html
           position={[
             viewState.selectedShip.position.x - 0.35,
@@ -331,52 +365,63 @@ export function ShipMarkers() {
             <img
               src="/assets/ship.jfif"
               alt="Ship"
-              style={{ 
-                width: "100%", 
+              style={{
+                width: "100%",
                 borderRadius: "6px",
-                marginBottom: "8px"
+                marginBottom: "8px",
               }}
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            
-            <h3 style={{ 
-              margin: "0 0 8px 0",
-              color: "#333",
-              fontSize: "16px"
-            }}>
+
+            <h3
+              style={{
+                margin: "0 0 8px 0",
+                color: "#333",
+                fontSize: "16px",
+              }}
+            >
               {getShipInfo(viewState.selectedShip.id).id}
             </h3>
-            
-            <hr style={{ 
-              border: "none", 
-              borderTop: "1px solid #ddd",
-              margin: "8px 0"
-            }} />
-            
-            <div style={{ 
-              display: "grid", 
-              gap: "4px",
-              fontSize: "14px",
-              color: "#555"
-            }}>
+
+            <hr
+              style={{
+                border: "none",
+                borderTop: "1px solid #ddd",
+                margin: "8px 0",
+              }}
+            />
+
+            <div
+              style={{
+                display: "grid",
+                gap: "4px",
+                fontSize: "14px",
+                color: "#555",
+              }}
+            >
               <p style={{ margin: "0" }}>
-                <strong>Speed:</strong> {getShipInfo(viewState.selectedShip.id).speed} knots
+                <strong>Speed:</strong>{" "}
+                {getShipInfo(viewState.selectedShip.id).speed} knots
               </p>
               <p style={{ margin: "0" }}>
-                <strong>Heading:</strong> {getShipInfo(viewState.selectedShip.id).heading}°
+                <strong>Heading:</strong>{" "}
+                {getShipInfo(viewState.selectedShip.id).heading}°
               </p>
               <p style={{ margin: "0" }}>
-                <strong>Route:</strong> {getShipInfo(viewState.selectedShip.id).route}
+                <strong>Route:</strong>{" "}
+                {getShipInfo(viewState.selectedShip.id).route}
               </p>
             </div>
-            
-            <div style={{ 
-              display: "flex", 
-              gap: "8px", 
-              marginTop: "12px" 
-            }}>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "12px",
+              }}
+            >
               <button
                 onClick={handleCloseShipInfo}
                 style={{
@@ -388,10 +433,16 @@ export function ShipMarkers() {
                   borderRadius: "4px",
                   cursor: "pointer",
                   fontSize: "14px",
-                  transition: "background-color 0.2s"
+                  transition: "background-color 0.2s",
                 }}
-                onMouseOver={(e) => (e.target as HTMLButtonElement).style.backgroundColor = "#ff3333"}
-                onMouseOut={(e) => (e.target as HTMLButtonElement).style.backgroundColor = "#ff5555"}
+                onMouseOver={(e) =>
+                  ((e.target as HTMLButtonElement).style.backgroundColor =
+                    "#ff3333")
+                }
+                onMouseOut={(e) =>
+                  ((e.target as HTMLButtonElement).style.backgroundColor =
+                    "#ff5555")
+                }
               >
                 Close
               </button>
@@ -407,16 +458,18 @@ export function ShipMarkers() {
                   borderRadius: "4px",
                   cursor: isLoading ? "not-allowed" : "pointer",
                   fontSize: "14px",
-                  transition: "background-color 0.2s"
+                  transition: "background-color 0.2s",
                 }}
                 onMouseOver={(e) => {
                   if (!isLoading) {
-                    (e.target as HTMLButtonElement).style.backgroundColor = "#449944";
+                    (e.target as HTMLButtonElement).style.backgroundColor =
+                      "#449944";
                   }
                 }}
                 onMouseOut={(e) => {
                   if (!isLoading) {
-                    (e.target as HTMLButtonElement).style.backgroundColor = "#55aa55";
+                    (e.target as HTMLButtonElement).style.backgroundColor =
+                      "#55aa55";
                   }
                 }}
               >
@@ -428,7 +481,7 @@ export function ShipMarkers() {
       )}
 
       {/* Sky-to-View Component */}
-      {viewState.mode === 'skyview' && viewState.selectedShip && (
+      {viewState.mode === "skyview" && viewState.selectedShip && (
         <SkyToView
           shipPosition={viewState.selectedShip.position}
           shipId={viewState.selectedShip.id}
@@ -439,7 +492,7 @@ export function ShipMarkers() {
       )}
 
       {/* Sky-to-View Controls */}
-      {viewState.mode === 'skyview' && (
+      {viewState.mode === "skyview" && (
         <>
           <Html center>
             <div
@@ -462,43 +515,51 @@ export function ShipMarkers() {
                 fontFamily: "Arial, sans-serif",
                 fontWeight: "bold",
                 textAlign: "center",
-                minWidth: "200px"
+                minWidth: "200px",
               }}
               onMouseOver={(e) => {
-                (e.target as HTMLDivElement).style.background = "rgba(255, 85, 85, 1)";
-                (e.target as HTMLDivElement).style.transform = "translateX(-50%) scale(1.05)";
+                (e.target as HTMLDivElement).style.background =
+                  "rgba(255, 85, 85, 1)";
+                (e.target as HTMLDivElement).style.transform =
+                  "translateX(-50%) scale(1.05)";
               }}
               onMouseOut={(e) => {
-                (e.target as HTMLDivElement).style.background = "rgba(255, 85, 85, 0.9)";
-                (e.target as HTMLDivElement).style.transform = "translateX(-50%) scale(1)";
+                (e.target as HTMLDivElement).style.background =
+                  "rgba(255, 85, 85, 0.9)";
+                (e.target as HTMLDivElement).style.transform =
+                  "translateX(-50%) scale(1)";
               }}
             >
               ✕ Close Sky-To-View Mode
             </div>
           </Html>
-          
+
           {isLoading && (
             <Html center>
-              <div style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                background: "rgba(0, 0, 0, 0.8)",
-                color: "white",
-                padding: "20px",
-                borderRadius: "8px",
-                fontSize: "18px",
-                fontFamily: "Arial, sans-serif",
-                textAlign: "center",
-                zIndex: 999
-              }}>
+              <div
+                style={{
+                  position: "fixed",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  background: "rgba(0, 0, 0, 0.8)",
+                  color: "white",
+                  padding: "20px",
+                  borderRadius: "8px",
+                  fontSize: "18px",
+                  fontFamily: "Arial, sans-serif",
+                  textAlign: "center",
+                  zIndex: 999,
+                }}
+              >
                 <div>Loading 3D Model...</div>
-                <div style={{ 
-                  marginTop: "10px", 
-                  fontSize: "14px", 
-                  opacity: 0.7 
-                }}>
+                <div
+                  style={{
+                    marginTop: "10px",
+                    fontSize: "14px",
+                    opacity: 0.7,
+                  }}
+                >
                   Please wait
                 </div>
               </div>

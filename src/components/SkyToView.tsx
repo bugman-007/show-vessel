@@ -20,7 +20,7 @@ interface CameraAnimation {
 
 const SkyToView: React.FC<SkyToViewProps> = ({
   shipPosition,
-  shipId,
+  // shipId,
   shipHeading,
   onModelLoaded,
   onError,
@@ -29,13 +29,15 @@ const SkyToView: React.FC<SkyToViewProps> = ({
   const shipModelRef = useRef<THREE.Object3D | null>(null);
   const animationRef = useRef<CameraAnimation | null>(null);
   const loaderRef = useRef<GLTFLoader | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+  // Fixed: Use number instead of NodeJS.Timeout for browser compatibility
+  const timeoutRef = useRef<number | null>(null);
+
   // Configuration
-  const MODEL_HEIGHT_OFFSET = 0.05; // Distance above globe surface
+  const MODEL_HEIGHT_OFFSET = -0.0; // Distance above globe surface
   const CAMERA_HEIGHT_OFFSET = 0.15; // Camera height above ship model
   const CAMERA_DISTANCE_OFFSET = 0.2; // Camera distance from ship
-  const MODEL_SCALE = 500;
+  const MODEL_SCALE = 0.000003;
+  // Fixed: Use number instead of NodeJS.Timeout
   const ANIMATION_SPEED = 0.02;
   const LOADING_TIMEOUT = 10000; // 10 seconds
 
@@ -44,40 +46,44 @@ const SkyToView: React.FC<SkyToViewProps> = ({
     // Get the direction from globe center to ship position (normal vector)
     const normalDirection = shipPosition.clone().normalize();
     // Move the ship model slightly above the globe surface
-    return shipPosition.clone().add(normalDirection.multiplyScalar(MODEL_HEIGHT_OFFSET));
+    return shipPosition
+      .clone()
+      .add(normalDirection.multiplyScalar(MODEL_HEIGHT_OFFSET));
   }, [shipPosition]);
 
   // Calculate camera target position (above and behind the ship)
   const calculateCameraPosition = useCallback(() => {
     const shipModelPos = calculateShipModelPosition();
-    
+
     // Get the normal direction (away from globe center)
     const normalDirection = shipPosition.clone().normalize();
-    
+
     // Calculate ship's forward direction based on heading
     const headingRad = THREE.MathUtils.degToRad(shipHeading);
     // Create forward direction in local space (relative to ship's orientation on globe)
-    const localForward = new THREE.Vector3(
-      Math.sin(headingRad), 
-      0, 
-      Math.cos(headingRad)
-    );
-    
+    // const localForward = new THREE.Vector3(
+    //   Math.sin(headingRad),
+    //   0,
+    //   Math.cos(headingRad)
+    // );
+
     // Transform local forward to world space (considering globe curvature)
     const up = normalDirection.clone();
     const right = new THREE.Vector3(0, 1, 0).cross(up).normalize();
     const forward = up.clone().cross(right).normalize();
-    
+
     // Apply heading rotation
-    const rotatedForward = forward.clone()
+    const rotatedForward = forward
+      .clone()
       .multiplyScalar(Math.cos(headingRad))
       .add(right.clone().multiplyScalar(Math.sin(headingRad)));
-    
+
     // Position camera behind and above the ship
-    const cameraPos = shipModelPos.clone()
+    const cameraPos = shipModelPos
+      .clone()
       .add(normalDirection.multiplyScalar(CAMERA_HEIGHT_OFFSET)) // Above
       .add(rotatedForward.multiplyScalar(-CAMERA_DISTANCE_OFFSET)); // Behind
-    
+
     return cameraPos;
   }, [shipPosition, shipHeading, calculateShipModelPosition]);
 
@@ -87,8 +93,8 @@ const SkyToView: React.FC<SkyToViewProps> = ({
       loaderRef.current = new GLTFLoader();
     }
 
-    // Set loading timeout
-    timeoutRef.current = setTimeout(() => {
+    // Set loading timeout - Fixed: Use window.setTimeout for browser compatibility
+    timeoutRef.current = window.setTimeout(() => {
       onError("Model loading timeout. Please try again.");
     }, LOADING_TIMEOUT);
 
@@ -97,8 +103,8 @@ const SkyToView: React.FC<SkyToViewProps> = ({
       (gltf) => {
         try {
           // Clear timeout
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
+          if (timeoutRef.current !== null) {
+            window.clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
           }
 
@@ -114,33 +120,26 @@ const SkyToView: React.FC<SkyToViewProps> = ({
 
           // Calculate proper ship position (elevated above globe surface)
           const shipModelPosition = calculateShipModelPosition();
-          
+
           // Position and orient the model
           model.position.copy(shipModelPosition);
           model.scale.setScalar(MODEL_SCALE);
-          
-          // Orient the ship model perpendicular to globe surface
+
+          // Orient the ship model perpendicular to globe surface and facing heading
           const normalDirection = shipPosition.clone().normalize();
-          const up = normalDirection.clone();
-          
-          // Calculate the ship's orientation matrix
-          const tempVector = new THREE.Vector3(0, 1, 0);
-          const right = tempVector.cross(up).normalize();
-          const forward = up.clone().cross(right).normalize();
-          
-          // Apply heading rotation around the normal (up) vector
+          model.up.copy(normalDirection);
+
+          // Calculate heading direction tangent to the globe
           const headingRad = THREE.MathUtils.degToRad(shipHeading);
-          const rotatedForward = forward.clone()
-            .multiplyScalar(Math.cos(headingRad))
-            .add(right.clone().multiplyScalar(Math.sin(headingRad)));
-          const rotatedRight = up.clone().cross(rotatedForward).normalize();
-          
-          // Create rotation matrix
-          const rotationMatrix = new THREE.Matrix4();
-          rotationMatrix.makeBasis(rotatedRight, up, rotatedForward.negate());
-          
-          // Apply rotation to model
-          model.setRotationFromMatrix(rotationMatrix);
+          // Find a vector tangent to the globe at this point, in the heading direction
+          // We'll use the east and north directions at this point
+          const east = new THREE.Vector3(0, 1, 0).cross(normalDirection).normalize();
+          const north = normalDirection.clone().cross(east).normalize();
+          // Heading: 0 = north, 90 = east
+          const headingDir = north.clone().multiplyScalar(Math.cos(headingRad)).add(east.clone().multiplyScalar(Math.sin(headingRad))).normalize();
+          // Target point in front of the ship
+          const lookAtTarget = model.position.clone().add(headingDir);
+          model.lookAt(lookAtTarget);
 
           // Ensure all materials are properly set up
           model.traverse((child) => {
@@ -148,7 +147,7 @@ const SkyToView: React.FC<SkyToViewProps> = ({
               // Enable shadows if needed
               child.castShadow = true;
               child.receiveShadow = true;
-              
+
               // Ensure materials are properly configured
               if (child.material) {
                 if (Array.isArray(child.material)) {
@@ -157,7 +156,9 @@ const SkyToView: React.FC<SkyToViewProps> = ({
                       mat.needsUpdate = true;
                     }
                   });
-                } else if (child.material instanceof THREE.MeshStandardMaterial) {
+                } else if (
+                  child.material instanceof THREE.MeshStandardMaterial
+                ) {
                   child.material.needsUpdate = true;
                 }
               }
@@ -165,11 +166,11 @@ const SkyToView: React.FC<SkyToViewProps> = ({
           });
 
           // Add to scene
+          console.log(model);
           scene.add(model);
-          
+
           // Notify parent component
           onModelLoaded(model as THREE.Mesh);
-          
         } catch (error) {
           console.error("Error setting up 3D model:", error);
           onError("Failed to setup 3D model");
@@ -177,21 +178,27 @@ const SkyToView: React.FC<SkyToViewProps> = ({
       },
       (progress) => {
         // Optional: You could emit loading progress here
-        console.log("Loading progress:", (progress.loaded / progress.total) * 100 + "%");
+        console.log(
+          "Loading progress:",
+          (progress.loaded / progress.total) * 100 + "%"
+        );
       },
       (error) => {
         console.error("Error loading ship model:", error);
-        
+
         // Clear timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
+        if (timeoutRef.current !== null) {
+          window.clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
         }
-        
-        onError("Failed to load ship model. Please check the model file exists.");
+
+        onError(
+          "Failed to load ship model. Please check the model file exists."
+        );
       }
     );
-  }, [shipPosition, shipHeading, scene, onModelLoaded, onError]);
+  }, [shipPosition, shipHeading, scene, onModelLoaded, onError, calculateShipModelPosition]);
+// }, [shipPosition, shipHeading, scene, onModelLoaded, onError, calculateShipModelPosition, disposeModel]);
 
   // Dispose of model resources
   const disposeModel = useCallback((model: THREE.Object3D) => {
@@ -201,7 +208,7 @@ const SkyToView: React.FC<SkyToViewProps> = ({
         if (child.geometry) {
           child.geometry.dispose();
         }
-        
+
         // Dispose materials
         if (child.material) {
           if (Array.isArray(child.material)) {
@@ -233,12 +240,12 @@ const SkyToView: React.FC<SkyToViewProps> = ({
   // Initialize camera animation
   useEffect(() => {
     const targetPosition = calculateCameraPosition();
-    
+
     animationRef.current = {
       progress: 0,
       startPos: camera.position.clone(),
       targetPos: targetPosition,
-      isAnimating: true
+      isAnimating: true,
     };
   }, [camera.position, calculateCameraPosition]);
 
@@ -247,23 +254,23 @@ const SkyToView: React.FC<SkyToViewProps> = ({
     if (animationRef.current && animationRef.current.isAnimating) {
       const animation = animationRef.current;
       animation.progress += ANIMATION_SPEED;
-      
+
       // Smooth camera interpolation
       camera.position.lerpVectors(
         animation.startPos,
         animation.targetPos,
         animation.progress
       );
-      
+
       // Always look at the ship model (not the original ship position)
       const shipModelPos = calculateShipModelPosition();
       camera.lookAt(shipModelPos);
-      
+
       // Check if animation is complete
       if (animation.progress >= 1) {
         camera.position.copy(animation.targetPos);
         animation.isAnimating = false;
-        
+
         // Start loading the model after camera animation completes
         loadShipModel();
       }
@@ -273,18 +280,18 @@ const SkyToView: React.FC<SkyToViewProps> = ({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Clear any pending timeouts
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      // Clear any pending timeouts - Fixed: Use window.clearTimeout
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
       }
-      
+
       // Clean up model
       if (shipModelRef.current) {
         scene.remove(shipModelRef.current);
         disposeModel(shipModelRef.current);
         shipModelRef.current = null;
       }
-      
+
       // Cancel any ongoing animations
       if (animationRef.current) {
         animationRef.current.isAnimating = false;
@@ -297,25 +304,16 @@ const SkyToView: React.FC<SkyToViewProps> = ({
     if (shipModelRef.current) {
       const shipModelPosition = calculateShipModelPosition();
       shipModelRef.current.position.copy(shipModelPosition);
-      
-      // Recalculate orientation
+
+      // Re-orient the model using the robust lookAt method
       const normalDirection = shipPosition.clone().normalize();
-      const up = normalDirection.clone();
-      
-      const tempVector = new THREE.Vector3(0, 1, 0);
-      const right = tempVector.cross(up).normalize();
-      const forward = up.clone().cross(right).normalize();
-      
+      shipModelRef.current.up.copy(normalDirection);
       const headingRad = THREE.MathUtils.degToRad(shipHeading);
-      const rotatedForward = forward.clone()
-        .multiplyScalar(Math.cos(headingRad))
-        .add(right.clone().multiplyScalar(Math.sin(headingRad)));
-      const rotatedRight = up.clone().cross(rotatedForward).normalize();
-      
-      const rotationMatrix = new THREE.Matrix4();
-      rotationMatrix.makeBasis(rotatedRight, up, rotatedForward.negate());
-      
-      shipModelRef.current.setRotationFromMatrix(rotationMatrix);
+      const east = new THREE.Vector3(0, 1, 0).cross(normalDirection).normalize();
+      const north = normalDirection.clone().cross(east).normalize();
+      const headingDir = north.clone().multiplyScalar(Math.cos(headingRad)).add(east.clone().multiplyScalar(Math.sin(headingRad))).normalize();
+      const lookAtTarget = shipModelRef.current.position.clone().add(headingDir);
+      shipModelRef.current.lookAt(lookAtTarget);
     }
   }, [shipPosition, shipHeading, calculateShipModelPosition]);
 

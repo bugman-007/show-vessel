@@ -29,10 +29,9 @@ export default function App() {
         <directionalLight position={[5, 5, 5]} intensity={1} />
         <Earth />
         <OrbitControls
-          zoomSpeed={0.2}
+          zoomSpeed={0.8}
           maxDistance={10}
           target={[0, 0, 0]}
-          minAzimuthAngle={-Math.PI / 0.73}
           maxAzimuthAngle={-Math.PI}
           minPolarAngle={2 * Math.PI / 7}
           maxPolarAngle={Math.PI / 2}
