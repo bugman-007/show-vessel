@@ -7,7 +7,7 @@ interface SkyToViewProps {
   shipPosition: THREE.Vector3;
   shipId: string;
   shipHeading: number;
-  onModelLoaded: (model: THREE.Mesh) => void;
+  onModelLoaded: (model: THREE.Object3D) => void;
   onError: (error: string) => void;
 }
 
@@ -170,7 +170,7 @@ const SkyToView: React.FC<SkyToViewProps> = ({
           scene.add(model);
 
           // Notify parent component
-          onModelLoaded(model as THREE.Mesh);
+          onModelLoaded(model);
         } catch (error) {
           console.error("Error setting up 3D model:", error);
           onError("Failed to setup 3D model");
@@ -198,7 +198,6 @@ const SkyToView: React.FC<SkyToViewProps> = ({
       }
     );
   }, [shipPosition, shipHeading, scene, onModelLoaded, onError, calculateShipModelPosition]);
-// }, [shipPosition, shipHeading, scene, onModelLoaded, onError, calculateShipModelPosition, disposeModel]);
 
   // Dispose of model resources
   const disposeModel = useCallback((model: THREE.Object3D) => {
