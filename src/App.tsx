@@ -32,7 +32,8 @@ export default function App() {
           zoomSpeed={0.8}
           maxDistance={10}
           target={[0, 0, 0]}
-          maxAzimuthAngle={-Math.PI}
+          minAzimuthAngle={Math.PI * 0.65}
+          maxAzimuthAngle={-Math.PI * 1.1}
           minPolarAngle={2 * Math.PI / 7}
           maxPolarAngle={Math.PI / 2}
         />
