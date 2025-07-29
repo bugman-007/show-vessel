@@ -24,7 +24,7 @@ export function CountryLabels() {
             const [lon, lat] = item.position;
             return {
               name: item.name,
-              position: latLonToVector3(lat, lon, 2.07),
+              position: latLonToVector3(lat, lon, 2.1),
               visible: true,
               rotation: new Euler(0, 0, 0),
             };

@@ -33,7 +33,7 @@ const SkyToView: React.FC<SkyToViewProps> = ({
   const timeoutRef = useRef<number | null>(null);
 
   // Configuration
-  const MODEL_HEIGHT_OFFSET = -0.0; // Distance above globe surface
+  const MODEL_HEIGHT_OFFSET = -0.2; // Distance above globe surface
   const CAMERA_HEIGHT_OFFSET = 0.15; // Camera height above ship model
   const CAMERA_DISTANCE_OFFSET = 0.2; // Camera distance from ship
   const MODEL_SCALE = 0.000003;

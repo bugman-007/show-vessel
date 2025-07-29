@@ -12,7 +12,7 @@ interface ShipRoutesProps {
 }
 
 export function ShipRoutes({ waypoints }: ShipRoutesProps) {
-  const radius = 2.02;
+  const radius = 2.001;
 
   const routeGeometry = useMemo(() => {
     if (waypoints.length < 2) return null;

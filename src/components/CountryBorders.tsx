@@ -67,13 +67,13 @@ export function CountryBorders() {
     fillRefs.current.forEach((mesh, i) => {
       if (mesh && fills[i]) {
         const countryDir = fills[i].position.clone().normalize();
-        mesh.visible = camDir.dot(countryDir) > 0; // visible if on the near side
+        mesh.visible = camDir.dot(countryDir) > 0.2; // visible if on the near side
       }
     });
     lineRefs.current.forEach((line, i) => {
       if (line && lines[i]) {
         const countryDir = lines[i].position.clone().normalize();
-        line.visible = camDir.dot(countryDir) > 0.2;
+        line.visible = camDir.dot(countryDir) > 0;
       }
     });
   });
@@ -90,7 +90,7 @@ export function CountryBorders() {
           }}
         >
           <meshBasicMaterial
-            color="#ffff00"
+            color="#faf9f2"
             side={THREE.DoubleSide}
             polygonOffset
             polygonOffsetFactor={2}

@@ -74,5 +74,17 @@
   {
     "name": "Yemen",
     "position": [47.12578, 15.87147]
+  },
+  {
+    "name": "Sri Lanka",
+    "position": [80.7718, 7.8731]
+  },
+  {
+    "name": "Malaysia",
+    "position": [101.9758, 4.2105]
+  },
+  {
+    "name": "Indonesia",
+    "position": [105.0149, -1.5489]
   }
 ]

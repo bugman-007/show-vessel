@@ -4,7 +4,6 @@ import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useSpring, animated } from "@react-spring/three";
 import { Html } from "@react-three/drei";
 import { useThree, useFrame } from "@react-three/fiber";
-import axios from "axios";
 import { latLonToVector3 } from "../utils/geo";
 import { ShipRoutes } from "./ShipRoutes";
 import SkyToView from "./SkyToView";
@@ -42,7 +41,19 @@ interface ViewState {
   loadedModel: THREE.Object3D | null;
 }
 
-function ShipMarker({ ship, hoveredId, setHoveredId, handleShipSelect }: {
+interface ShipMarkersProps {
+  ships: Ship[];
+  selectedShipId: string | null;
+  setSelectedShipId: (id: string) => void;
+  route: Waypoint[];
+}
+
+function ShipMarker({
+  ship,
+  hoveredId,
+  setHoveredId,
+  handleShipSelect,
+}: {
   ship: ShipMesh;
   hoveredId: string | null;
   setHoveredId: (id: string | null) => void;
@@ -73,7 +84,7 @@ function ShipMarker({ ship, hoveredId, setHoveredId, handleShipSelect }: {
   );
 }
 
-export function ShipMarkers() {
+export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }: ShipMarkersProps) {
   const { camera, scene } = useThree();
   const radius = 2.02;
 
@@ -95,37 +106,10 @@ export function ShipMarkers() {
     isAnimating: boolean;
   } | null>(null);
 
-  const [ships, setShips] = useState<Ship[]>([]);
-  const [route, setRoute] = useState<Waypoint[] | null>(null);
-  const selectedInfo = ships.find(s => s.id === viewState.selectedShip?.id);
+  // Find selected ship info from props
+  const selectedInfo = ships.find((s) => s.id === selectedShipId);
 
-  useEffect(() => {
-    axios
-      .get(`http://52.241.6.183:8079/ships`)
-      .then((res) => {
-        setShips(res.data);
-      })
-      .catch(() => setError("Failed to load ship data"));
-  }, []);
-
-  useEffect(() => {
-    if (viewState.selectedShip) {
-      axios
-        .get(`http://52.241.6.183:8079/ships/routes/${viewState.selectedShip.id}`)
-        .then((res) => {
-          // Transform waypoints to { latitude, longitude }
-          const waypoints = (res.data.waypoints || []).map((wp: { lat: number; lon: number }) => ({
-            latitude: wp.lat,
-            longitude: wp.lon,
-          }));
-          setRoute(waypoints);
-        })
-        .catch(() => setError("Failed to load ship route"));
-    } else {
-      setRoute(null);
-    }
-  }, [viewState.selectedShip]);
-
+  // Memoize ship meshes
   const shipMeshes = useMemo(() => {
     try {
       return ships.map((ship): ShipMesh => {
@@ -133,7 +117,6 @@ export function ShipMarkers() {
         const up = new THREE.Vector3(0, -1, 0);
         const dir = pos.clone().normalize();
         const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
-
         return {
           id: ship.id,
           position: pos,
@@ -147,9 +130,11 @@ export function ShipMarkers() {
     }
   }, [ships, radius]);
 
+  // When a ship is selected in 3D, update selectedShipId in parent
   const handleShipSelect = useCallback(
     (ship: ShipMesh) => {
       if (viewState.mode === "skyview") return;
+      setSelectedShipId(ship.id);
       setViewState((prev) => ({
         ...prev,
         selectedShip: {
@@ -159,8 +144,27 @@ export function ShipMarkers() {
         },
       }));
     },
-    [viewState.mode]
+    [viewState.mode, setSelectedShipId]
   );
+
+  // When selectedShipId changes, update viewState.selectedShip
+  useEffect(() => {
+    if (selectedShipId) {
+      const ship = shipMeshes.find((s) => s.id === selectedShipId);
+      if (ship) {
+        setViewState((prev) => ({
+          ...prev,
+          selectedShip: {
+            id: ship.id,
+            position: ship.position,
+            heading: ship.heading,
+          },
+        }));
+      }
+    } else {
+      setViewState((prev) => ({ ...prev, selectedShip: null }));
+    }
+  }, [selectedShipId, shipMeshes]);
 
   const handleViewDetails = useCallback(
     (shipId: string) => {
@@ -219,7 +223,13 @@ export function ShipMarkers() {
     });
     setIsLoading(false);
     setError(null);
-  }, [viewState.originalCameraPosition, viewState.loadedModel, viewState.mode, camera, scene]);
+  }, [
+    viewState.originalCameraPosition,
+    viewState.loadedModel,
+    viewState.mode,
+    camera,
+    scene,
+  ]);
 
   const handleModelLoaded = useCallback((model: THREE.Object3D) => {
     setViewState((prev) => ({
@@ -242,7 +252,10 @@ export function ShipMarkers() {
   }, []);
 
   useFrame(() => {
-    if (cameraTransitionRef.current && cameraTransitionRef.current.isAnimating) {
+    if (
+      cameraTransitionRef.current &&
+      cameraTransitionRef.current.isAnimating
+    ) {
       const transition = cameraTransitionRef.current;
       transition.progress += 0.02;
 
@@ -253,8 +266,12 @@ export function ShipMarkers() {
       );
 
       if (viewState.selectedShip) {
-        const normalDirection = viewState.selectedShip.position.clone().normalize();
-        const elevatedShipPos = viewState.selectedShip.position.clone().add(normalDirection.multiplyScalar(0));
+        const normalDirection = viewState.selectedShip.position
+          .clone()
+          .normalize();
+        const elevatedShipPos = viewState.selectedShip.position
+          .clone()
+          .add(normalDirection.multiplyScalar(0));
         camera.lookAt(elevatedShipPos);
       }
 
@@ -279,7 +296,12 @@ export function ShipMarkers() {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [viewState.mode, viewState.selectedShip, handleCloseSkyToView, handleCloseShipInfo]);
+  }, [
+    viewState.mode,
+    viewState.selectedShip,
+    handleCloseSkyToView,
+    handleCloseShipInfo,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -295,13 +317,15 @@ export function ShipMarkers() {
   if (error) {
     return (
       <Html center>
-        <div style={{
-          background: "#ff4444",
-          color: "white",
-          padding: "10px",
-          borderRadius: "5px",
-          fontFamily: "Arial, sans-serif"
-        }}>
+        <div
+          style={{
+            background: "#ff4444",
+            color: "white",
+            padding: "10px",
+            borderRadius: "5px",
+            fontFamily: "Arial, sans-serif",
+          }}
+        >
           Error: {error}
         </div>
       </Html>
@@ -329,33 +353,58 @@ export function ShipMarkers() {
           ]}
           center
         >
-          <div style={{
-            background: "rgba(255, 255, 255, 0.95)",
-            padding: "12px",
-            borderRadius: "8px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-            width: "320px",
-            fontFamily: "Arial, sans-serif",
-            backdropFilter: "blur(10px)",
-          }}>
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.95)",
+              padding: "12px",
+              borderRadius: "8px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+              width: "320px",
+              fontFamily: "Arial, sans-serif",
+              backdropFilter: "blur(10px)",
+            }}
+          >
             <img
               src="/assets/ship.jfif"
               alt="Ship"
-              style={{ width: "100%", borderRadius: "6px", marginBottom: "8px" }}
+              style={{
+                width: "100%",
+                borderRadius: "6px",
+                marginBottom: "8px",
+              }}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
 
-            <h3 style={{ margin: "0 0 8px 0", color: "#333", fontSize: "16px" }}>
+            <h3
+              style={{ margin: "0 0 8px 0", color: "#333", fontSize: "16px" }}
+            >
               {selectedInfo?.id ?? "Unknown Ship"}
             </h3>
 
-            <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "8px 0" }} />
+            <hr
+              style={{
+                border: "none",
+                borderTop: "1px solid #ddd",
+                margin: "8px 0",
+              }}
+            />
 
-            <div style={{ display: "grid", gap: "4px", fontSize: "14px", color: "#555" }}>
-              <p><strong>Speed:</strong> {selectedInfo?.speed ?? "N/A"} knots</p>
-              <p><strong>Heading:</strong> {selectedInfo?.heading ?? "N/A"}°</p>
+            <div
+              style={{
+                display: "grid",
+                gap: "4px",
+                fontSize: "14px",
+                color: "#555",
+              }}
+            >
+              <p>
+                <strong>Speed:</strong> {selectedInfo?.speed ?? "N/A"} knots
+              </p>
+              <p>
+                <strong>Heading:</strong> {selectedInfo?.heading ?? "N/A"}°
+              </p>
               {/* <p><strong>Route:</strong> {route ? route.map(wp => `${wp.latitude},${wp.longitude}`).join(" → ") : "N/A"}</p> */}
             </div>
 
@@ -371,10 +420,16 @@ export function ShipMarkers() {
                   borderRadius: "4px",
                   cursor: "pointer",
                   fontSize: "14px",
-                  transition: "background-color 0.2s"
+                  transition: "background-color 0.2s",
                 }}
-                onMouseOver={(e) => ((e.target as HTMLButtonElement).style.backgroundColor = "#ff3333")}
-                onMouseOut={(e) => ((e.target as HTMLButtonElement).style.backgroundColor = "#ff5555")}
+                onMouseOver={(e) =>
+                  ((e.target as HTMLButtonElement).style.backgroundColor =
+                    "#ff3333")
+                }
+                onMouseOut={(e) =>
+                  ((e.target as HTMLButtonElement).style.backgroundColor =
+                    "#ff5555")
+                }
               >
                 Close
               </button>
@@ -390,16 +445,18 @@ export function ShipMarkers() {
                   borderRadius: "4px",
                   cursor: isLoading ? "not-allowed" : "pointer",
                   fontSize: "14px",
-                  transition: "background-color 0.2s"
+                  transition: "background-color 0.2s",
                 }}
                 onMouseOver={(e) => {
                   if (!isLoading) {
-                    (e.target as HTMLButtonElement).style.backgroundColor = "#449944";
+                    (e.target as HTMLButtonElement).style.backgroundColor =
+                      "#449944";
                   }
                 }}
                 onMouseOut={(e) => {
                   if (!isLoading) {
-                    (e.target as HTMLButtonElement).style.backgroundColor = "#55aa55";
+                    (e.target as HTMLButtonElement).style.backgroundColor =
+                      "#55aa55";
                   }
                 }}
               >
@@ -443,15 +500,19 @@ export function ShipMarkers() {
                 fontFamily: "Arial, sans-serif",
                 fontWeight: "bold",
                 textAlign: "center",
-                minWidth: "200px"
+                minWidth: "200px",
               }}
               onMouseOver={(e) => {
-                (e.target as HTMLDivElement).style.background = "rgba(255, 85, 85, 1)";
-                (e.target as HTMLDivElement).style.transform = "translateX(-50%) scale(1.05)";
+                (e.target as HTMLDivElement).style.background =
+                  "rgba(255, 85, 85, 1)";
+                (e.target as HTMLDivElement).style.transform =
+                  "translateX(-50%) scale(1.05)";
               }}
               onMouseOut={(e) => {
-                (e.target as HTMLDivElement).style.background = "rgba(255, 85, 85, 0.9)";
-                (e.target as HTMLDivElement).style.transform = "translateX(-50%) scale(1)";
+                (e.target as HTMLDivElement).style.background =
+                  "rgba(255, 85, 85, 0.9)";
+                (e.target as HTMLDivElement).style.transform =
+                  "translateX(-50%) scale(1)";
               }}
             >
               ✕ Close Sky-To-View Mode
@@ -460,22 +521,26 @@ export function ShipMarkers() {
 
           {isLoading && (
             <Html center>
-              <div style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                background: "rgba(0, 0, 0, 0.8)",
-                color: "white",
-                padding: "20px",
-                borderRadius: "8px",
-                fontSize: "18px",
-                fontFamily: "Arial, sans-serif",
-                textAlign: "center",
-                zIndex: 999
-              }}>
+              <div
+                style={{
+                  position: "fixed",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  background: "rgba(0, 0, 0, 0.8)",
+                  color: "white",
+                  padding: "20px",
+                  borderRadius: "8px",
+                  fontSize: "18px",
+                  fontFamily: "Arial, sans-serif",
+                  textAlign: "center",
+                  zIndex: 999,
+                }}
+              >
                 <div>Loading 3D Model...</div>
-                <div style={{ marginTop: "10px", fontSize: "14px", opacity: 0.7 }}>
+                <div
+                  style={{ marginTop: "10px", fontSize: "14px", opacity: 0.7 }}
+                >
                   Please wait
                 </div>
               </div>
