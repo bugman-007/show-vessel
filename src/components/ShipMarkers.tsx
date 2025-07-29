@@ -1,4 +1,4 @@
-// ShipMarkers.tsx
+// Enhanced ShipMarkers.tsx with smooth real-time movement
 import * as THREE from "three";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useSpring, animated } from "@react-spring/three";
@@ -8,26 +8,36 @@ import { latLonToVector3 } from "../utils/geo";
 import { ShipRoutes } from "./ShipRoutes";
 import SkyToView from "./SkyToView";
 
-// Type for ship data from API
+// Enhanced ship interface with movement tracking
 interface Ship {
   id: string;
   lat: number;
   lon: number;
   heading: number;
   speed?: number;
+  timestamp?: number; // When this position was recorded
 }
 
-// Type for route waypoints
 interface Waypoint {
   latitude: number;
   longitude: number;
 }
 
+// Enhanced ship mesh with movement state
 interface ShipMesh {
   id: string;
-  position: THREE.Vector3;
+  currentPosition: THREE.Vector3;
+  targetPosition: THREE.Vector3;
+  previousPosition: THREE.Vector3;
   quaternion: THREE.Quaternion;
   heading: number;
+  speed: number;
+  lastUpdateTime: number;
+  interpolationProgress: number;
+  isMoving: boolean;
+  route: Waypoint[];
+  routeProgress: number; // Progress along current route segment
+  currentRouteSegment: number; // Which route segment ship is on
 }
 
 interface ViewState {
@@ -48,6 +58,60 @@ interface ShipMarkersProps {
   route: Waypoint[];
 }
 
+// Utility functions for ship movement calculations
+const calculateDistance = (pos1: THREE.Vector3, pos2: THREE.Vector3): number => {
+  return pos1.distanceTo(pos2);
+};
+
+// const calculateBearing = (from: THREE.Vector3, to: THREE.Vector3): number => {
+//   const direction = new THREE.Vector3().subVectors(to, from).normalize();
+//   return Math.atan2(direction.x, direction.z) * (180 / Math.PI);
+// };
+
+const knotsToUnitsPerSecond = (knots: number): number => {
+  // Convert knots to Three.js units per second
+  // Assuming 1 Three.js unit = ~100 nautical miles for our globe scale
+  return (knots * 0.01) / 3600; // Adjust this scaling factor as needed
+};
+
+const interpolateAlongRoute = (route: Waypoint[], progress: number, radius: number): THREE.Vector3 => {
+  if (route.length < 2) return new THREE.Vector3();
+  
+  const totalSegments = route.length - 1;
+  const segmentProgress = progress * totalSegments;
+  const currentSegment = Math.floor(segmentProgress);
+  const segmentT = segmentProgress - currentSegment;
+  
+  if (currentSegment >= totalSegments) {
+    const lastWaypoint = route[route.length - 1];
+    return latLonToVector3(lastWaypoint.latitude, lastWaypoint.longitude, radius);
+  }
+  
+  const startWaypoint = route[currentSegment];
+  const endWaypoint = route[currentSegment + 1];
+  
+  const startPos = latLonToVector3(startWaypoint.latitude, startWaypoint.longitude, radius);
+  const endPos = latLonToVector3(endWaypoint.latitude, endWaypoint.longitude, radius);
+  
+  // Spherical interpolation for smooth movement along globe surface
+  const quaternionStart = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1), 
+    startPos.clone().normalize()
+  );
+  const quaternionEnd = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1), 
+    endPos.clone().normalize()
+  );
+  
+  const interpolatedQuaternion = new THREE.Quaternion().slerpQuaternions(
+    quaternionStart, 
+    quaternionEnd, 
+    segmentT
+  );
+  
+  return new THREE.Vector3(0, 0, radius).applyQuaternion(interpolatedQuaternion);
+};
+
 function ShipMarker({
   ship,
   hoveredId,
@@ -67,7 +131,7 @@ function ShipMarker({
   return (
     <animated.mesh
       key={ship.id}
-      position={[ship.position.x, ship.position.y, ship.position.z]}
+      position={[ship.currentPosition.x, ship.currentPosition.y, ship.currentPosition.z]}
       quaternion={ship.quaternion}
       scale={scale}
       onPointerOver={() => setHoveredId(ship.id)}
@@ -76,10 +140,17 @@ function ShipMarker({
     >
       <coneGeometry args={[0.02, 0.05, 8]} />
       <meshPhongMaterial
-        color={hoveredId === ship.id ? "#ff6666" : "#ff0000"}
+        color={ship.isMoving ? (hoveredId === ship.id ? "#ff6666" : "#ff0000") : "#888888"}
         transparent
         opacity={0.9}
       />
+      {/* Speed indicator trail */}
+      {ship.isMoving && (
+        <mesh position={[0, 0, -0.03]}>
+          <coneGeometry args={[0.01, 0.02, 6]} />
+          <meshPhongMaterial color="#ffaa00" transparent opacity={0.6} />
+        </mesh>
+      )}
     </animated.mesh>
   );
 }
@@ -98,7 +169,10 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Enhanced ship state management with movement tracking
+  const [shipMeshes, setShipMeshes] = useState<Map<string, ShipMesh>>(new Map());
   const animationRef = useRef<number | null>(null);
+  // const lastUpdateTime = useRef<number>(Date.now());
   const cameraTransitionRef = useRef<{
     progress: number;
     startPos: THREE.Vector3;
@@ -106,31 +180,164 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
     isAnimating: boolean;
   } | null>(null);
 
-  // Find selected ship info from props
-  const selectedInfo = ships.find((s) => s.id === selectedShipId);
+  // Create or update ship meshes with smooth movement
+  const updateShipMeshes = useCallback((newShips: Ship[]) => {
+    const currentTime = Date.now();
+    const newShipMeshes = new Map<string, ShipMesh>();
 
-  // Memoize ship meshes
-  const shipMeshes = useMemo(() => {
-    try {
-      return ships.map((ship): ShipMesh => {
+    newShips.forEach((ship) => {
+      const existingShip = shipMeshes.get(ship.id);
+      const newTargetPos = latLonToVector3(ship.lat, ship.lon, radius);
+      
+      if (existingShip) {
+        // Update existing ship with new target
+        // const timeDelta = (currentTime - existingShip.lastUpdateTime) / 1000; // seconds
+        // const expectedDistance = knotsToUnitsPerSecond(ship.speed || 0) * timeDelta;
+        const actualDistance = calculateDistance(existingShip.currentPosition, newTargetPos);
+        
+        // Check if ship has moved significantly (not just GPS noise)
+        const isSignificantMovement = actualDistance > 0.001;
+        
+        newShipMeshes.set(ship.id, {
+          ...existingShip,
+          targetPosition: newTargetPos,
+          previousPosition: existingShip.currentPosition.clone(),
+          heading: ship.heading,
+          speed: ship.speed || 0,
+          lastUpdateTime: currentTime,
+          interpolationProgress: 0, // Reset interpolation
+          isMoving: isSignificantMovement && (ship.speed || 0) > 0,
+        });
+      } else {
+        // Create new ship
         const pos = latLonToVector3(ship.lat, ship.lon, radius);
         const up = new THREE.Vector3(0, -1, 0);
         const dir = pos.clone().normalize();
         const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
-        return {
+        
+        newShipMeshes.set(ship.id, {
           id: ship.id,
-          position: pos,
+          currentPosition: pos.clone(),
+          targetPosition: pos.clone(),
+          previousPosition: pos.clone(),
           quaternion,
           heading: ship.heading,
-        };
-      });
-    } catch {
-      setError("Failed to calculate ship positions");
-      return [];
-    }
-  }, [ships, radius]);
+          speed: ship.speed || 0,
+          lastUpdateTime: currentTime,
+          interpolationProgress: 1, // Start at target
+          isMoving: false,
+          route: [],
+          routeProgress: 0,
+          currentRouteSegment: 0,
+        });
+      }
+    });
 
-  // When a ship is selected in 3D, update selectedShipId in parent
+    setShipMeshes(newShipMeshes);
+  }, [shipMeshes, radius]);
+
+  // Update ship meshes when ships data changes
+  useEffect(() => {
+    updateShipMeshes(ships);
+  }, [ships, updateShipMeshes]);
+
+  // Update ship routes when route data changes
+  useEffect(() => {
+    if (selectedShipId && route.length > 0) {
+      setShipMeshes(prev => {
+        const updated = new Map(prev);
+        const ship = updated.get(selectedShipId);
+        if (ship) {
+          updated.set(selectedShipId, {
+            ...ship,
+            route: route,
+            routeProgress: 0,
+            currentRouteSegment: 0,
+          });
+        }
+        return updated;
+      });
+    }
+  }, [selectedShipId, route]);
+
+  // Smooth movement animation loop
+  useFrame((state, delta) => {
+    // const currentTime = Date.now();
+    
+    setShipMeshes(prev => {
+      const updated = new Map();
+      
+      prev.forEach((ship, id) => {
+        const updatedShip = { ...ship };
+        
+        if (updatedShip.isMoving && updatedShip.interpolationProgress < 1) {
+          // Calculate movement based on ship speed and time
+          const speed = knotsToUnitsPerSecond(updatedShip.speed);
+          const distance = calculateDistance(updatedShip.previousPosition, updatedShip.targetPosition);
+          const timeToTarget = distance / (speed || 0.001); // Avoid division by zero
+          
+          // Update interpolation progress
+          updatedShip.interpolationProgress = Math.min(1, updatedShip.interpolationProgress + (delta / timeToTarget));
+          
+          // Smooth interpolation between positions
+          if (updatedShip.route.length > 1) {
+            // Move along route
+            updatedShip.currentPosition = interpolateAlongRoute(
+              updatedShip.route, 
+              updatedShip.routeProgress, 
+              radius
+            );
+            
+            // Update route progress based on speed
+            const routeSpeed = 0.01; // Adjust this for route following speed
+            updatedShip.routeProgress = Math.min(1, updatedShip.routeProgress + (delta * routeSpeed));
+          } else {
+            // Direct interpolation to target
+            updatedShip.currentPosition.lerpVectors(
+              updatedShip.previousPosition,
+              updatedShip.targetPosition,
+              updatedShip.interpolationProgress
+            );
+          }
+          
+          // Update ship orientation to face movement direction
+          if (updatedShip.interpolationProgress > 0.01) {
+            const direction = new THREE.Vector3()
+              .subVectors(updatedShip.targetPosition, updatedShip.previousPosition)
+              .normalize();
+            
+            if (direction.length() > 0) {
+              const up = updatedShip.currentPosition.clone().normalize();
+              const right = new THREE.Vector3().crossVectors(up, direction).normalize();
+              const forward = new THREE.Vector3().crossVectors(right, up).normalize();
+              
+              const matrix = new THREE.Matrix4().makeBasis(right, up, forward);
+              updatedShip.quaternion.setFromRotationMatrix(matrix);
+            }
+          }
+          
+          // Stop movement when reached target
+          if (updatedShip.interpolationProgress >= 1) {
+            updatedShip.isMoving = false;
+            updatedShip.currentPosition.copy(updatedShip.targetPosition);
+          }
+        }
+        
+        updated.set(id, updatedShip);
+      });
+      
+      return updated;
+    });
+  });
+
+  // Convert map to array for rendering
+  const shipMeshArray = useMemo(() => {
+    return Array.from(shipMeshes.values());
+  }, [shipMeshes]);
+
+  // Find selected ship info from props
+  const selectedInfo = ships.find((s) => s.id === selectedShipId);
+
   const handleShipSelect = useCallback(
     (ship: ShipMesh) => {
       if (viewState.mode === "skyview") return;
@@ -139,7 +346,7 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
         ...prev,
         selectedShip: {
           id: ship.id,
-          position: ship.position,
+          position: ship.currentPosition,
           heading: ship.heading,
         },
       }));
@@ -147,16 +354,16 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
     [viewState.mode, setSelectedShipId]
   );
 
-  // When selectedShipId changes, update viewState.selectedShip
+  // Update selected ship when selectedShipId changes
   useEffect(() => {
     if (selectedShipId) {
-      const ship = shipMeshes.find((s) => s.id === selectedShipId);
+      const ship = shipMeshes.get(selectedShipId);
       if (ship) {
         setViewState((prev) => ({
           ...prev,
           selectedShip: {
             id: ship.id,
-            position: ship.position,
+            position: ship.currentPosition,
             heading: ship.heading,
           },
         }));
@@ -168,7 +375,7 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
 
   const handleViewDetails = useCallback(
     (shipId: string) => {
-      const ship = shipMeshes.find((s) => s.id === shipId);
+      const ship = shipMeshes.get(shipId);
       if (!ship) return;
 
       setIsLoading(true);
@@ -180,7 +387,7 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
         mode: "skyview",
         selectedShip: {
           id: ship.id,
-          position: ship.position,
+          position: ship.currentPosition,
           heading: ship.heading,
         },
         originalCameraPosition: currentCameraPos,
@@ -334,7 +541,7 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
 
   return (
     <>
-      {shipMeshes.map((ship) => (
+      {shipMeshArray.map((ship) => (
         <ShipMarker
           key={ship.id}
           ship={ship}
@@ -405,7 +612,11 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
               <p>
                 <strong>Heading:</strong> {selectedInfo?.heading ?? "N/A"}°
               </p>
-              {/* <p><strong>Route:</strong> {route ? route.map(wp => `${wp.latitude},${wp.longitude}`).join(" → ") : "N/A"}</p> */}
+              <p>
+                <strong>Status:</strong> {
+                  shipMeshes.get(selectedShipId || "")?.isMoving ? "Moving" : "Stationary"
+                }
+              </p>
             </div>
 
             <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>

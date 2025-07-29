@@ -7,6 +7,21 @@ import { ShipMarkers } from "./components/ShipMarkers";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import "./App.css";
 
+// Enhanced ship interface with timestamp
+// interface Ship {
+//   id: string;
+//   lat: number;
+//   lon: number;
+//   heading: number;
+//   speed?: number;
+//   timestamp?: number;
+// }
+
+// interface Waypoint {
+//   latitude: number;
+//   longitude: number;
+// }
+
 function Earth() {
   return (
     <>
@@ -51,6 +66,9 @@ export default function App() {
   const [ships, setShips] = useState([]);
   const [selectedShipId, setSelectedShipId] = useState(null);
   const [route, setRoute] = useState([]);
+  // const [isOnline, setIsOnline] = useState(true);
+  // const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  // const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
 
   // Fetch ships on mount
   useEffect(() => {
