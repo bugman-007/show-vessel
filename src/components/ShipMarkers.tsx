@@ -262,10 +262,12 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
 
   // Smooth movement animation loop
   useFrame((state, delta) => {
+    // useFrame((state, delta) => {
     // const currentTime = Date.now();
     
     setShipMeshes(prev => {
       const updated = new Map();
+      console.log(state);
       
       prev.forEach((ship, id) => {
         const updatedShip = { ...ship };

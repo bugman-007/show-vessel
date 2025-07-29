@@ -64,7 +64,7 @@ function Stars() {
 
 export default function App() {
   const [ships, setShips] = useState([]);
-  const [selectedShipId, setSelectedShipId] = useState(null);
+  const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
   const [route, setRoute] = useState([]);
   // const [isOnline, setIsOnline] = useState(true);
   // const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
@@ -87,7 +87,7 @@ export default function App() {
     fetch(`http://52.241.6.183:8079/ships/routes/${selectedShipId}`)
       .then((res) => res.json())
       .then((data) => {
-        const waypoints = (data.waypoints || []).map((wp) => ({
+        const waypoints = (data.waypoints || []).map((wp: { lat: number; lon: number }) => ({
           latitude: wp.lat,
           longitude: wp.lon,
         }));
@@ -101,7 +101,7 @@ export default function App() {
       <Sidebar
         ships={ships}
         selectedShipId={selectedShipId}
-        setSelectedShipId={setSelectedShipId}
+        setSelectedShipId={(id: string) => setSelectedShipId(id)}
         route={route}
       />
       <Canvas camera={{ position: [3, 2, -3], fov: 35 }} style={{ flex: 1 }}>
@@ -125,7 +125,7 @@ export default function App() {
         <ShipMarkers
           ships={ships}
           selectedShipId={selectedShipId}
-          setSelectedShipId={setSelectedShipId}
+          setSelectedShipId={(id: string) => setSelectedShipId(id)}
           route={route}
         />
       </Canvas>
