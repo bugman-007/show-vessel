@@ -154,10 +154,10 @@ function ShipMarker({
     </animated.mesh>
   );
 }
+const radius = 2.02;
 
 export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }: ShipMarkersProps) {
   const { camera, scene } = useThree();
-  const radius = 2.02;
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [viewState, setViewState] = useState<ViewState>({
@@ -183,58 +183,56 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
   // Create or update ship meshes with smooth movement
   const updateShipMeshes = useCallback((newShips: Ship[]) => {
     const currentTime = Date.now();
-    const newShipMeshes = new Map<string, ShipMesh>();
-
-    newShips.forEach((ship) => {
-      const existingShip = shipMeshes.get(ship.id);
-      const newTargetPos = latLonToVector3(ship.lat, ship.lon, radius);
-      
-      if (existingShip) {
-        // Update existing ship with new target
-        // const timeDelta = (currentTime - existingShip.lastUpdateTime) / 1000; // seconds
-        // const expectedDistance = knotsToUnitsPerSecond(ship.speed || 0) * timeDelta;
-        const actualDistance = calculateDistance(existingShip.currentPosition, newTargetPos);
-        
-        // Check if ship has moved significantly (not just GPS noise)
-        const isSignificantMovement = actualDistance > 0.001;
-        
-        newShipMeshes.set(ship.id, {
-          ...existingShip,
-          targetPosition: newTargetPos,
-          previousPosition: existingShip.currentPosition.clone(),
-          heading: ship.heading,
-          speed: ship.speed || 0,
-          lastUpdateTime: currentTime,
-          interpolationProgress: 0, // Reset interpolation
-          isMoving: isSignificantMovement && (ship.speed || 0) > 0,
-        });
-      } else {
-        // Create new ship
-        const pos = latLonToVector3(ship.lat, ship.lon, radius);
-        const up = new THREE.Vector3(0, -1, 0);
-        const dir = pos.clone().normalize();
-        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
-        
-        newShipMeshes.set(ship.id, {
-          id: ship.id,
-          currentPosition: pos.clone(),
-          targetPosition: pos.clone(),
-          previousPosition: pos.clone(),
-          quaternion,
-          heading: ship.heading,
-          speed: ship.speed || 0,
-          lastUpdateTime: currentTime,
-          interpolationProgress: 1, // Start at target
-          isMoving: false,
-          route: [],
-          routeProgress: 0,
-          currentRouteSegment: 0,
-        });
-      }
+  
+    setShipMeshes((prevMeshes) => {
+      const newShipMeshes = new Map<string, ShipMesh>();
+  
+      newShips.forEach((ship) => {
+        const existingShip = prevMeshes.get(ship.id);
+        const newTargetPos = latLonToVector3(ship.lat, ship.lon, radius);
+  
+        if (existingShip) {
+          const actualDistance = calculateDistance(existingShip.currentPosition, newTargetPos);
+          const isSignificantMovement = actualDistance > 0.001;
+  
+          newShipMeshes.set(ship.id, {
+            ...existingShip,
+            targetPosition: newTargetPos,
+            previousPosition: existingShip.currentPosition.clone(),
+            heading: ship.heading,
+            speed: ship.speed || 0,
+            lastUpdateTime: currentTime,
+            interpolationProgress: 0,
+            isMoving: isSignificantMovement && (ship.speed || 0) > 0,
+          });
+        } else {
+          const pos = latLonToVector3(ship.lat, ship.lon, radius);
+          const up = new THREE.Vector3(0, -1, 0);
+          const dir = pos.clone().normalize();
+          const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
+  
+          newShipMeshes.set(ship.id, {
+            id: ship.id,
+            currentPosition: pos.clone(),
+            targetPosition: pos.clone(),
+            previousPosition: pos.clone(),
+            quaternion,
+            heading: ship.heading,
+            speed: ship.speed || 0,
+            lastUpdateTime: currentTime,
+            interpolationProgress: 1,
+            isMoving: false,
+            route: [],
+            routeProgress: 0,
+            currentRouteSegment: 0,
+          });
+        }
+      });
+  
+      return newShipMeshes;
     });
-
-    setShipMeshes(newShipMeshes);
-  }, [shipMeshes, radius]);
+  }, [radius]); // ✅ only depends on radius
+  
 
   // Update ship meshes when ships data changes
   useEffect(() => {
@@ -267,7 +265,7 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
     
     setShipMeshes(prev => {
       const updated = new Map();
-      console.log(state);
+      // console.log(state);
       
       prev.forEach((ship, id) => {
         const updatedShip = { ...ship };
