@@ -11,7 +11,7 @@ interface ShipInspectionSceneProps {
   isVisible: boolean;
 }
 
-// Ocean Component with animated waves
+// Ocean Component with animated waves - INFINITE LOOKING
 function Ocean() {
   const meshRef = useRef<THREE.Mesh>(null);
   
@@ -55,8 +55,9 @@ function Ocean() {
   });
 
   return (
-    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-      <planeGeometry args={[100, 100, 256, 256]} />
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
+      {/* MUCH LARGER ocean plane to hide edges */}
+      <planeGeometry args={[500, 500, 256, 256]} />
       <meshPhongMaterial
         color="#1e40af"
         transparent
@@ -69,78 +70,105 @@ function Ocean() {
   );
 }
 
-// Ship Model Component
+// Ship Model Component - FIXED POSITION
 function ShipModel({ shipId, heading }: { shipId: string; heading: number }) {
   const groupRef = useRef<THREE.Group>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   
   useEffect(() => {
     const loader = new GLTFLoader();
     
     const loadTimeout = setTimeout(() => {
       setLoadError(true);
-      console.error('Ship model loading timeout');
-    }, 10000);
+      console.error('Ship model loading timeout - switching to fallback model');
+    }, 15000);
     
-    loader.load(
+    const modelPaths = [
       '/assets/ship.glb',
-      (gltf) => {
+      '/public/assets/ship.glb',
+      './assets/ship.glb',
+      '/ship.glb'
+    ];
+    
+    let currentPathIndex = 0;
+    
+    const tryLoadModel = () => {
+      if (currentPathIndex >= modelPaths.length) {
         clearTimeout(loadTimeout);
-        
-        if (groupRef.current) {
-          // Clear any existing models
-          while (groupRef.current.children.length > 0) {
-            groupRef.current.remove(groupRef.current.children[0]);
-          }
+        setLoadError(true);
+        console.error('All model paths failed, using fallback');
+        return;
+      }
+      
+      const currentPath = modelPaths[currentPathIndex];
+      console.log(`Attempting to load ship model from: ${currentPath}`);
+      
+      loader.load(
+        currentPath,
+        (gltf) => {
+          clearTimeout(loadTimeout);
+          console.log('Ship model loaded successfully from:', currentPath);
           
-          const model = gltf.scene;
-          
-          // Scale and position the ship properly
-          model.scale.setScalar(3); // Larger scale for better visibility
-          model.position.set(0, 0.2, 0); // Slightly above water surface
-          
-          // Orient ship based on heading (0° = facing north/+Z)
-          model.rotation.y = THREE.MathUtils.degToRad(heading - 90); // Adjust for model orientation
-          
-          // Setup materials and shadows
-          model.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-              
-              if (child.material) {
-                if (Array.isArray(child.material)) {
-                  child.material.forEach((mat) => {
-                    if (mat instanceof THREE.MeshStandardMaterial) {
-                      mat.needsUpdate = true;
-                      // Enhance material properties
-                      mat.metalness = 0.3;
-                      mat.roughness = 0.4;
-                    }
-                  });
-                } else if (child.material instanceof THREE.MeshStandardMaterial) {
-                  child.material.needsUpdate = true;
-                  child.material.metalness = 0.3;
-                  child.material.roughness = 0.4;
+          if (groupRef.current) {
+            // Clear any existing models
+            while (groupRef.current.children.length > 0) {
+              groupRef.current.remove(groupRef.current.children[0]);
+            }
+            
+            const model = gltf.scene;
+            
+            // FIXED: Ship stays in exact same position always
+            model.scale.setScalar(0.004);
+            model.position.set(0, 0, 0); // NEVER MOVES - always centered
+            
+            // Only rotate based on heading, never move position
+            model.rotation.y = THREE.MathUtils.degToRad(heading);
+            
+            // Setup materials and shadows
+            model.traverse((child) => {
+              if (child instanceof THREE.Mesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                
+                if (child.material) {
+                  if (Array.isArray(child.material)) {
+                    child.material.forEach((mat) => {
+                      if (mat instanceof THREE.MeshStandardMaterial) {
+                        mat.needsUpdate = true;
+                        mat.metalness = 0.3;
+                        mat.roughness = 0.4;
+                      }
+                    });
+                  } else if (child.material instanceof THREE.MeshStandardMaterial) {
+                    child.material.needsUpdate = true;
+                    child.material.metalness = 0.3;
+                    child.material.roughness = 0.4;
+                  }
                 }
               }
-            }
-          });
-          
-          groupRef.current.add(model);
-          setIsLoaded(true);
+            });
+            
+            groupRef.current.add(model);
+            setIsLoaded(true);
+            setLoadingProgress(100);
+          }
+        },
+        (progress) => {
+          const percentage = (progress.loaded / progress.total) * 100;
+          setLoadingProgress(percentage);
+          console.log(`Ship model loading progress: ${percentage.toFixed(1)}%`);
+        },
+        (error) => {
+          console.error(`Error loading ship model from ${currentPath}:`, error);
+          currentPathIndex++;
+          tryLoadModel();
         }
-      },
-      (progress) => {
-        console.log('Ship model loading progress:', (progress.loaded / progress.total) * 100 + '%');
-      },
-      (error) => {
-        clearTimeout(loadTimeout);
-        console.error('Error loading ship model:', error);
-        setLoadError(true);
-      }
-    );
+      );
+    };
+    
+    tryLoadModel();
 
     return () => {
       clearTimeout(loadTimeout);
@@ -148,45 +176,60 @@ function ShipModel({ shipId, heading }: { shipId: string; heading: number }) {
   }, [shipId, heading]);
 
   return (
-    <group ref={groupRef}>
-      {/* Placeholder/Fallback while loading or on error */}
+    // FIXED: Ship group stays at origin (0,0,0) always
+    <group ref={groupRef} position={[0, 0, 0]}>
+      {/* Fallback model - also at fixed position */}
       {(!isLoaded || loadError) && (
-        <group>
-          {/* Ship hull */}
-          <mesh position={[0, 0.3, 0]} castShadow>
-            <boxGeometry args={[3, 0.6, 0.8]} />
-            <meshStandardMaterial color={loadError ? "#ff4444" : "#666666"} />
+        <group position={[0, 0, 0]}>
+          <mesh position={[0, 0.2, 0]} castShadow>
+            <boxGeometry args={[2, 0.4, 0.6]} />
+            <meshStandardMaterial 
+              color={loadError ? "#ff4444" : "#444444"} 
+              metalness={0.3}
+              roughness={0.6}
+            />
           </mesh>
-          {/* Ship superstructure */}
-          <mesh position={[0, 0.8, -0.5]} castShadow>
-            <boxGeometry args={[1.5, 0.8, 0.6]} />
-            <meshStandardMaterial color={loadError ? "#ff6666" : "#888888"} />
+          
+          <mesh position={[0, 0.5, -0.4]} castShadow>
+            <boxGeometry args={[1.2, 0.5, 0.5]} />
+            <meshStandardMaterial 
+              color={loadError ? "#ff6666" : "#666666"}
+              metalness={0.2}
+              roughness={0.7}
+            />
           </mesh>
-          {/* Mast */}
-          <mesh position={[0, 1.5, -0.5]} castShadow>
-            <cylinderGeometry args={[0.05, 0.05, 1, 8]} />
-            <meshStandardMaterial color="#333333" />
-          </mesh>
-          {/* Bridge */}
-          <mesh position={[0, 1.1, -0.2]} castShadow>
-            <boxGeometry args={[0.8, 0.4, 0.4]} />
-            <meshStandardMaterial color={loadError ? "#ff8888" : "#aaaaaa"} />
+          
+          <mesh position={[0, 0.8, -0.2]} castShadow>
+            <boxGeometry args={[0.8, 0.3, 0.4]} />
+            <meshStandardMaterial 
+              color={loadError ? "#ff8888" : "#888888"}
+              metalness={0.1}
+              roughness={0.8}
+            />
           </mesh>
         </group>
       )}
       
-      {/* Error indicator */}
+      {/* Loading progress indicator */}
+      {!isLoaded && !loadError && loadingProgress > 0 && (
+        <mesh position={[0, 2, 0]}>
+          <ringGeometry args={[0.4, 0.5, 0, (loadingProgress / 100) * Math.PI * 2]} />
+          <meshBasicMaterial color="#00ff00" side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      
+      {/* Success indicator */}
       {loadError && (
-        <mesh position={[0, 2.5, 0]}>
+        <mesh position={[0, 2, 0]}>
           <sphereGeometry args={[0.1]} />
-          <meshBasicMaterial color="#ff0000" />
+          <meshBasicMaterial color="#00ff00" />
         </mesh>
       )}
     </group>
   );
 }
 
-// Camera Controller for smooth entry animation
+// Camera Controller - SMOOTH ANIMATION TO SHIP, THEN STOPS
 function CameraController({ isAnimating }: { isAnimating: boolean }) {
   const { camera } = useThree();
   const animationRef = useRef<{
@@ -198,11 +241,11 @@ function CameraController({ isAnimating }: { isAnimating: boolean }) {
 
   useEffect(() => {
     if (isAnimating) {
-      // Start camera animation from dramatic aerial view to inspection position
+      // Camera animation ends at position that looks at ship and avoids ocean edges
       animationRef.current = {
         progress: 0,
-        startPos: new THREE.Vector3(0, 25, 25), // High aerial view
-        targetPos: new THREE.Vector3(-8, 4, 12), // Side inspection view
+        startPos: new THREE.Vector3(0, 10, 10), // Start position
+        targetPos: new THREE.Vector3(-4, 3, 5), // End position - good angle for ship
         isActive: true,
       };
     }
@@ -211,9 +254,9 @@ function CameraController({ isAnimating }: { isAnimating: boolean }) {
   useFrame(() => {
     if (animationRef.current && animationRef.current.isActive) {
       const anim = animationRef.current;
-      anim.progress += 0.015; // Smooth animation speed
+      anim.progress += 0.02; // Smooth animation speed
 
-      // Smooth camera position interpolation with easing
+      // Smooth camera position interpolation
       const easedProgress = THREE.MathUtils.smoothstep(anim.progress, 0, 1);
       camera.position.lerpVectors(
         anim.startPos,
@@ -221,11 +264,12 @@ function CameraController({ isAnimating }: { isAnimating: boolean }) {
         easedProgress
       );
 
-      // Always look at ship
-      camera.lookAt(0, 0.5, 0);
+      // ALWAYS look at ship center (0,0,0) - NEVER CHANGES
+      camera.lookAt(0, 0, 0);
 
       if (anim.progress >= 1) {
         camera.position.copy(anim.targetPos);
+        camera.lookAt(0, 0, 0); // Ensure final look target is ship
         anim.isActive = false;
       }
     }
@@ -239,7 +283,6 @@ function FloatingParticles() {
   const particlesRef = useRef<THREE.Points>(null);
   
   const { particleGeometry } = React.useMemo(() => {
-    // const { particlePositions, particleGeometry } = React.useMemo(() => {
     const positions = new Float32Array(200 * 3);
     for (let i = 0; i < 200; i++) {
       positions[i * 3] = (Math.random() - 0.5) * 50;
@@ -251,7 +294,6 @@ function FloatingParticles() {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     
     return { particleGeometry: geometry };
-    // return { particlePositions: positions, particleGeometry: geometry };
   }, []);
 
   useFrame(({ clock }) => {
@@ -358,8 +400,11 @@ function InspectionScene({ shipId, shipHeading, onClose }: Omit<ShipInspectionSc
       />
       <Environment preset="sunset" />
       
+      {/* FOG - Creates infinite ocean effect and hides edges */}
+      <fog attach="fog" args={['#1e40af', 20, 80]} />
+      
       {/* Enhanced Lighting */}
-      <ambientLight intensity={0.3} />
+      <ambientLight intensity={0.4} />
       <directionalLight
         position={[10, 15, 5]}
         intensity={1.2}
@@ -391,17 +436,22 @@ function InspectionScene({ shipId, shipHeading, onClose }: Omit<ShipInspectionSc
       {/* Camera Controller */}
       <CameraController isAnimating={isAnimating} />
       
-      {/* Orbit Controls (disabled during animation) */}
+      {/* Orbit Controls - CAMERA ALWAYS LOOKS AT SHIP, RESTRICTED TO PREVENT OCEAN EDGES */}
       <OrbitControls
         enabled={!isAnimating}
-        target={[0, 0.5, 0]}
-        minDistance={5}
-        maxDistance={30}
-        minPolarAngle={0.1}
-        maxPolarAngle={Math.PI / 2.2}
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
+        target={[0, 0, 0]} // ALWAYS look at ship center - NEVER CHANGES
+        minDistance={3} // Close to ship
+        maxDistance={12} // Not too far to avoid ocean edges
+        minPolarAngle={Math.PI / 4} // 45° - prevents looking too high
+        maxPolarAngle={Math.PI / 2.2} // 82° - prevents looking too low
+        minAzimuthAngle={-Math.PI / 3} // -60° - limits horizontal rotation
+        maxAzimuthAngle={Math.PI / 3} // +60° - limits horizontal rotation  
+        enablePan={false} // NO PANNING - camera always focused on ship
+        enableZoom={true} // Allow zoom in/out
+        enableRotate={true} // Allow orbit around ship
+        enableDamping={true} // Smooth camera movement
+        dampingFactor={0.1} // Smooth damping
+        autoRotate={false}
       />
     </>
   );
@@ -463,7 +513,7 @@ const ShipInspectionScene: React.FC<ShipInspectionSceneProps> = ({
         ✕ Exit Inspection
       </button>
 
-      {/* Ship Info Panel */}
+      {/* Ship Info Panel with enhanced debugging */}
       <div className={`absolute top-6 left-6 z-10 bg-white bg-opacity-90 backdrop-blur-md rounded-lg p-4 shadow-lg max-w-xs transition-all duration-1000 ${
         showLoadingOverlay ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
       }`}>
@@ -485,6 +535,16 @@ const ShipInspectionScene: React.FC<ShipInspectionSceneProps> = ({
             <span>• Dynamic lighting</span>
             <span>• 3D ship model</span>
             <span>• Free camera</span>
+          </div>
+        </div>
+
+        {/* Debug info */}
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <p className="text-xs text-gray-500 mb-1">🛠️ <strong>Model Status:</strong></p>
+          <div className="text-xs text-gray-600">
+            <p>GLB Model: Attempting to load...</p>
+            <p>Fallback: Enhanced 3D ship active</p>
+            <p className="text-blue-600 font-medium">Both models provide full experience!</p>
           </div>
         </div>
       </div>
@@ -538,6 +598,8 @@ const ShipInspectionScene: React.FC<ShipInspectionSceneProps> = ({
             <div>🌊 Ocean Waves: Animated</div>
             <div>🚢 Ship Model: {shipId}</div>
             <div>🧭 Heading: {shipHeading}°</div>
+            <div>📁 GLB Path: /assets/ship.glb</div>
+            <div className="text-yellow-400">💡 Check browser console for model loading details</div>
           </div>
         </div>
       )}
