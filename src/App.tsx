@@ -1,4 +1,3 @@
-// Updated App.tsx with real-time data fetching
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PointMaterial, Points } from "@react-three/drei";
@@ -6,9 +5,10 @@ import { CountryLabels } from "./components/CountryLabels";
 import { CountryBorders } from "./components/CountryBorders";
 import { ShipMarkers } from "./components/ShipMarkers";
 import { Sidebar } from "./components/Sidebar/Sidebar";
+// import SkyToView from "./components/SkyToView";
+// import * as THREE from "three";
 import "./App.css";
 
-// Enhanced ship interface with timestamp
 interface Ship {
   id: string;
   lat: number;
@@ -25,17 +25,15 @@ interface Waypoint {
 
 function Earth() {
   return (
-    <>
-      <mesh rotation={[0, Math.PI / 2, 0]}>
-        <sphereGeometry args={[2, 64, 64]} />
-        <meshPhongMaterial
-          color="#6ec6f5"
-          transparent={true}
-          opacity={0.9}
-          depthWrite={true}
-        />
-      </mesh>
-    </>
+    <mesh rotation={[0, Math.PI / 2, 0]}>
+      <sphereGeometry args={[2, 64, 64]} />
+      <meshPhongMaterial
+        color="#6ec6f5"
+        transparent
+        opacity={0.9}
+        depthWrite={true}
+      />
+    </mesh>
   );
 }
 
@@ -58,7 +56,7 @@ function Stars() {
   }, []);
   return (
     <Points positions={points} stride={3}>
-      <PointMaterial color="white" size={0.3} sizeAttenuation={true} />
+      <PointMaterial color="white" size={0.3} sizeAttenuation />
     </Points>
   );
 }
@@ -67,182 +65,124 @@ export default function App() {
   const [ships, setShips] = useState<Ship[]>([]);
   const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
   const [route, setRoute] = useState<Waypoint[]>([]);
+  const [viewMode, setViewMode] = useState<"normal" | "skyview">("normal");
   const [isOnline, setIsOnline] = useState(true);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connecting" | "connected" | "error"
+  >("connecting");
 
-  // Enhanced ship data fetching with error handling and status tracking
   const fetchShips = useCallback(async () => {
     try {
-      setConnectionStatus('connecting');
+      setConnectionStatus("connecting");
       const response = await fetch("/api/ships", {
-        // const response = await fetch("http://52.241.6.183:8079/ships", {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // Add timeout
-        signal: AbortSignal.timeout(10000), // 10 second timeout
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(10000),
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
+
+      if (!response.ok) throw new Error(`HTTP error! ${response.status}`);
+
       const data = await response.json();
-      
-      // Add timestamp to each ship record
       const shipsWithTimestamp = data.map((ship: Ship) => ({
         ...ship,
         timestamp: Date.now(),
       }));
-      
+
       setShips(shipsWithTimestamp);
-      setConnectionStatus('connected');
+      setConnectionStatus("connected");
       setIsOnline(true);
       setLastUpdateTime(new Date());
-      
-    } catch (error) {
-      console.error('Error fetching ships:', error);
-      setConnectionStatus('error');
+    } catch (err) {
+      console.error("Error fetching ships:", err);
+      setConnectionStatus("error");
       setIsOnline(false);
-      
-      // Don't clear ships data on error - keep last known positions
-      // This prevents ships from disappearing during temporary network issues
     }
   }, []);
 
-  // Enhanced route fetching with error handling
   const fetchRoute = useCallback(async (shipId: string) => {
     if (!shipId) {
       setRoute([]);
       return;
     }
-    
     try {
-      const response = await fetch(`api/ships/routes/${shipId}`, {
-        // const response = await fetch(`http://52.241.6.183:8079/ships/routes/${shipId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: AbortSignal.timeout(8000), // 8 second timeout
+      const res = await fetch(`/api/ships/routes/${shipId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(8000),
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      const waypoints = (data.waypoints || []).map((wp: any) => ({
-        latitude: wp.lat,
-        longitude: wp.lon,
-      }));
-      
+      if (!res.ok) throw new Error(`HTTP error! ${res.status}`);
+      const data = await res.json();
+      const waypoints = (data.waypoints || []).map(
+        (wp: { lat: number; lon: number }) => ({
+          latitude: wp.lat,
+          longitude: wp.lon,
+        })
+      );
       setRoute(waypoints);
-      
-    } catch (error) {
-      console.error(`Error fetching route for ship ${shipId}:`, error);
-      setRoute([]); // Clear route on error
+    } catch (err) {
+      console.error(`Error fetching route for ${shipId}:`, err);
+      setRoute([]);
     }
   }, []);
 
-  // Initial data fetch on component mount
   useEffect(() => {
     fetchShips();
-  }, [fetchShips]);
-
-  // Set up 5-second interval for real-time ship data updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchShips();
-    }, 5000); // 5 seconds
-
-    // Cleanup interval on component unmount
+    const interval = setInterval(fetchShips, 5000);
     return () => clearInterval(interval);
   }, [fetchShips]);
 
-  // Fetch route when selectedShipId changes
   useEffect(() => {
-    fetchRoute(selectedShipId || '');
+    fetchRoute(selectedShipId || "");
   }, [selectedShipId, fetchRoute]);
 
-  // Enhanced ship selection handler
   const handleShipSelection = useCallback((shipId: string) => {
     setSelectedShipId(shipId);
-    // Route will be fetched automatically by the useEffect above
+    setViewMode("normal");
   }, []);
 
-  // Network status monitoring
+  // Network listener
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      fetchShips(); // Immediately fetch when back online
+      fetchShips();
     };
-    
-    const handleOffline = () => {
-      setIsOnline(false);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, [fetchShips]);
 
-  // Status indicator component
   const StatusIndicator = () => (
-    <div style={{
-      position: 'absolute',
-      top: '10px',
-      right: '10px',
-      zIndex: 1000,
-      background: connectionStatus === 'connected' ? '#4CAF50' : 
-                 connectionStatus === 'connecting' ? '#FF9800' : '#F44336',
-      color: 'white',
-      padding: '8px 12px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: 'bold',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-    }}>
-      <div style={{
-        width: '8px',
-        height: '8px',
-        borderRadius: '50%',
-        backgroundColor: 'currentColor',
-        animation: connectionStatus === 'connecting' ? 'pulse 1.5s infinite' : 'none',
-      }} />
-      <span>
-        {connectionStatus === 'connected' ? 'Live' : 
-         connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
-      </span>
-      {lastUpdateTime && connectionStatus === 'connected' && (
-        <span style={{ opacity: 0.8, fontSize: '10px' }}>
-          {lastUpdateTime.toLocaleTimeString()}
-        </span>
-      )}
+    <div
+      className="fixed top-4 right-4 z-50 px-3 py-1 rounded-full text-sm font-bold text-white shadow-md"
+      style={{
+        background:
+          connectionStatus === "connected"
+            ? "#4CAF50"
+            : connectionStatus === "connecting"
+            ? "#FF9800"
+            : "#F44336",
+      }}
+    >
+      ●{" "}
+      {connectionStatus === "connected"
+        ? "Live"
+        : connectionStatus === "connecting"
+        ? "Connecting..."
+        : "Offline"}
     </div>
   );
 
+  const selectedShip = ships.find((s) => s.id === selectedShipId);
+
   return (
     <>
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
-      
-      <div style={{ display: "flex", width: "100vw", height: "100vh", position: 'relative' }}>
+      <div className="w-screen h-screen flex relative bg-black">
         <StatusIndicator />
-        
         <Sidebar
           ships={ships}
           selectedShipId={selectedShipId}
@@ -252,8 +192,52 @@ export default function App() {
           lastUpdateTime={lastUpdateTime}
           isOnline={isOnline}
         />
-        
-        <Canvas camera={{ position: [3, 2, -3], fov: 35 }} style={{ flex: 1 }}>
+
+        {/* Info Modal in Normal Mode */}
+        {viewMode === "normal" && selectedShip && (
+          <div className="fixed top-20 right-6 z-50 w-80 bg-white rounded-lg shadow-lg p-4 text-sm">
+            <h3 className="text-lg font-bold mb-2">{selectedShip.id}</h3>
+            <p>Speed: {selectedShip.speed || 0} knots</p>
+            <p>Heading: {selectedShip.heading}°</p>
+            <p>
+              Status:{" "}
+              {selectedShip.speed && selectedShip.speed > 0
+                ? "Moving"
+                : "Stationary"}
+            </p>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setSelectedShipId(null)}
+                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-1 rounded"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => setViewMode("skyview")}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded"
+              >
+                View Details
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Close button for Sky-To-View */}
+        {viewMode === "skyview" && (
+          <div className="fixed top-4 right-4 z-50">
+            <button
+              onClick={() => {
+                setViewMode("normal");
+                setSelectedShipId(null);
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded shadow-md transition"
+            >
+              ✕ Exit Sky-To-View
+            </button>
+          </div>
+        )}
+
+        <Canvas camera={{ position: [3, 2, -3], fov: 35 }} className="flex-1">
           <OrbitControls
             zoomSpeed={0.8}
             minDistance={2.1}
@@ -276,7 +260,18 @@ export default function App() {
             selectedShipId={selectedShipId}
             setSelectedShipId={handleShipSelection}
             route={route}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
           />
+          {/* {viewMode === "skyview" && selectedShip && (
+            <SkyToView
+              shipId={selectedShip.id}
+              shipHeading={selectedShip.heading}
+              shipPosition={new THREE.Vector3()} // Placeholder — actual should come from state
+              onModelLoaded={() => {}}
+              onError={() => {}}
+            />
+          )} */}
         </Canvas>
       </div>
     </>
