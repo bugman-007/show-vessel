@@ -20,13 +20,6 @@ interface CameraAnimation {
   isAnimating: boolean;
 }
 
-const MODEL_SCALE = 0.00007;
-const OCEAN_RADIUS = 2.001;
-const MODEL_HEIGHT_OFFSET = 0.05;
-const CAMERA_HEIGHT_OFFSET = 0.5;
-const CAMERA_DISTANCE_OFFSET = 0.1;
-const ANIMATION_SPEED = 0.015;
-
 const SkyToView: React.FC<SkyToViewProps> = ({
   shipPosition,
   shipHeading,
@@ -34,169 +27,306 @@ const SkyToView: React.FC<SkyToViewProps> = ({
   onError,
 }) => {
   const { camera, scene } = useThree();
-  const modelRef = useRef<THREE.Object3D | null>(null);
+  const shipModelRef = useRef<THREE.Object3D | null>(null);
+  const oceanSurfaceRef = useRef<THREE.Mesh | null>(null);
   const animationRef = useRef<CameraAnimation | null>(null);
+  const loaderRef = useRef<GLTFLoader | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
+  // FIXED CONFIGURATION - Much better values
+  const MODEL_HEIGHT_OFFSET = 0.08; // Above surface (positive!)
+  const CAMERA_HEIGHT_OFFSET = 0.4; // Much higher camera
+  const CAMERA_DISTANCE_OFFSET = 1.2; // Much further back
+  const MODEL_SCALE = 0.025; // Much larger model
+  const ANIMATION_SPEED = 0.015; // Slightly slower for smoothness
+  const LOADING_TIMEOUT = 10000;
+  // const OCEAN_RADIUS = 2.005; // Slightly above globe
+
+  // Calculate ship model position (FIXED: above surface)
   const calculateShipModelPosition = useCallback(() => {
+    const normalDirection = shipPosition.clone().normalize();
     return shipPosition
       .clone()
-      .normalize()
-      .multiplyScalar(OCEAN_RADIUS + MODEL_HEIGHT_OFFSET);
+      .add(normalDirection.multiplyScalar(MODEL_HEIGHT_OFFSET));
   }, [shipPosition]);
 
+  // FIXED: Much better camera positioning
   const calculateCameraPosition = useCallback(() => {
     const shipModelPos = calculateShipModelPosition();
-    const up = shipPosition.clone().normalize();
-    const east = new THREE.Vector3(0, 1, 0).cross(up).normalize();
-    const north = up.clone().cross(east).normalize();
+    const normalDirection = shipPosition.clone().normalize();
 
+    // Calculate ship's forward direction based on heading
     const headingRad = THREE.MathUtils.degToRad(shipHeading);
-    const forwardDir = north
+    
+    // Create proper tangent vectors on sphere surface
+    const east = new THREE.Vector3(0, 1, 0).cross(normalDirection).normalize();
+    const north = normalDirection.clone().cross(east).normalize();
+    
+    // Ship's forward direction
+    const shipForward = north
       .clone()
       .multiplyScalar(Math.cos(headingRad))
       .add(east.clone().multiplyScalar(Math.sin(headingRad)))
       .normalize();
 
-    return shipModelPos
+    // Position camera behind and above the ship
+    const cameraPos = shipModelPos
       .clone()
-      .add(up.clone().multiplyScalar(CAMERA_HEIGHT_OFFSET))
-      .add(forwardDir.clone().multiplyScalar(-CAMERA_DISTANCE_OFFSET));
-  }, [shipHeading, shipPosition, calculateShipModelPosition]);
+      .add(normalDirection.multiplyScalar(CAMERA_HEIGHT_OFFSET)) // Much higher
+      .add(shipForward.multiplyScalar(-CAMERA_DISTANCE_OFFSET)); // Much further back
 
-  const calculateCameraTarget = useCallback(() => {
-    const shipModelPos = calculateShipModelPosition();
-    const up = shipPosition.clone().normalize();
-    const east = new THREE.Vector3(0, 1, 0).cross(up).normalize();
-    const north = up.clone().cross(east).normalize();
-
-    const headingRad = THREE.MathUtils.degToRad(shipHeading);
-    const forwardDir = north
-      .clone()
-      .multiplyScalar(Math.cos(headingRad))
-      .add(east.clone().multiplyScalar(Math.sin(headingRad)))
-      .normalize();
-
-    return shipModelPos.clone().add(forwardDir.multiplyScalar(0.1));
+    return cameraPos;
   }, [shipPosition, shipHeading, calculateShipModelPosition]);
 
-  // Load model (can be preloaded, here we dynamically load if not present)
-  const loadModel = useCallback(() => {
-    const loader = new GLTFLoader();
+  // Create ocean surface around ship
+  const createOceanSurface = useCallback(() => {
+    if (oceanSurfaceRef.current) {
+      scene.remove(oceanSurfaceRef.current);
+      oceanSurfaceRef.current.geometry.dispose();
+      (oceanSurfaceRef.current.material as THREE.Material).dispose();
+    }
 
-    loader.load(
-      "/assets/ship.glb",
+    // Create a local ocean patch around the ship
+    const oceanGeometry = new THREE.PlaneGeometry(4, 4, 32, 32);
+    const oceanMaterial = new THREE.MeshPhongMaterial({
+      color: "#1e40af",
+      transparent: true,
+      opacity: 0.8,
+      shininess: 100,
+    });
+
+    const oceanMesh = new THREE.Mesh(oceanGeometry, oceanMaterial);
+    
+    // Position ocean surface at ship location on globe
+    const normalDirection = shipPosition.clone().normalize();
+    oceanMesh.position.copy(shipPosition.clone().add(normalDirection.multiplyScalar(0.001)));
+    
+    // Orient ocean surface to be tangent to globe
+    oceanMesh.lookAt(shipPosition.clone().add(normalDirection.multiplyScalar(2)));
+    
+    oceanSurfaceRef.current = oceanMesh;
+    scene.add(oceanMesh);
+  }, [shipPosition, scene]);
+
+  // FIXED: Better model loading and positioning
+  const loadShipModel = useCallback(() => {
+    if (!loaderRef.current) {
+      loaderRef.current = new GLTFLoader();
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      onError("Model loading timeout. Please try again.");
+    }, LOADING_TIMEOUT);
+
+    loaderRef.current.load(
+      `/assets/ship.glb`,
       (gltf) => {
         try {
-          const model = gltf.scene;
-
-          if (modelRef.current) {
-            scene.remove(modelRef.current);
-            disposeModel(modelRef.current);
+          if (timeoutRef.current !== null) {
+            window.clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
           }
 
-          const pos = calculateShipModelPosition();
-          model.position.copy(pos);
-          model.scale.setScalar(MODEL_SCALE);
+          // Clean up existing model
+          if (shipModelRef.current) {
+            scene.remove(shipModelRef.current);
+            disposeModel(shipModelRef.current);
+          }
 
-          const up = shipPosition.clone().normalize();
-          const east = new THREE.Vector3(0, 1, 0).cross(up).normalize();
-          const north = up.clone().cross(east).normalize();
+          const model = gltf.scene;
+          shipModelRef.current = model;
 
+          // FIXED: Proper positioning and scaling
+          const shipModelPosition = calculateShipModelPosition();
+          model.position.copy(shipModelPosition);
+          model.scale.setScalar(MODEL_SCALE); // Much larger
+
+          // FIXED: Better orientation
+          const normalDirection = shipPosition.clone().normalize();
+          model.up.copy(normalDirection);
+
+          // Calculate proper heading direction
           const headingRad = THREE.MathUtils.degToRad(shipHeading);
-          const forward = north
+          const east = new THREE.Vector3(0, 1, 0).cross(normalDirection).normalize();
+          const north = normalDirection.clone().cross(east).normalize();
+          const headingDir = north
             .clone()
             .multiplyScalar(Math.cos(headingRad))
             .add(east.clone().multiplyScalar(Math.sin(headingRad)))
             .normalize();
 
-          model.up.copy(up);
-          model.lookAt(pos.clone().add(forward));
+          const lookAtTarget = model.position.clone().add(headingDir);
+          model.lookAt(lookAtTarget);
 
+          // Setup materials
           model.traverse((child) => {
             if (child instanceof THREE.Mesh) {
               child.castShadow = true;
               child.receiveShadow = true;
-              if (child.material instanceof THREE.Material) {
-                child.material.needsUpdate = true;
-              } else if (Array.isArray(child.material)) {
-                child.material.forEach((m) => {
-                  if (m instanceof THREE.Material) m.needsUpdate = true;
-                });
+              if (child.material) {
+                if (Array.isArray(child.material)) {
+                  child.material.forEach((mat) => {
+                    if (mat instanceof THREE.MeshStandardMaterial) {
+                      mat.needsUpdate = true;
+                    }
+                  });
+                } else if (child.material instanceof THREE.MeshStandardMaterial) {
+                  child.material.needsUpdate = true;
+                }
               }
             }
           });
 
           scene.add(model);
-          modelRef.current = model;
+          
+          // Create ocean surface after model is loaded
+          createOceanSurface();
+          
           onModelLoaded(model);
-        } catch (e) {
-          console.error("Model setup error", e);
-          onError("3D model setup failed");
+        } catch (error) {
+          console.error("Error setting up 3D model:", error);
+          onError("Failed to setup 3D model");
         }
       },
-      undefined,
-      (err) => {
-        console.error("Model load error:", err);
-        onError("Failed to load model");
+      (progress) => {
+        console.log("Loading progress:", (progress.loaded / progress.total) * 100 + "%");
+      },
+      (error) => {
+        console.error("Error loading ship model:", error);
+        if (timeoutRef.current !== null) {
+          window.clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        onError("Failed to load ship model. Please check the model file exists.");
       }
     );
-  }, [scene, shipPosition, shipHeading, calculateShipModelPosition]);
+  }, [shipPosition, shipHeading, scene, onModelLoaded, onError, calculateShipModelPosition, createOceanSurface]);
 
+  // Dispose of model resources
   const disposeModel = useCallback((model: THREE.Object3D) => {
     model.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.geometry?.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach((mat) => mat.dispose());
-        } else {
-          child.material?.dispose();
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((mat) => disposeMaterial(mat));
+          } else {
+            disposeMaterial(child.material);
+          }
         }
       }
     });
   }, []);
 
+  const disposeMaterial = (material: THREE.Material) => {
+    if (material instanceof THREE.MeshStandardMaterial) {
+      if (material.map) material.map.dispose();
+      if (material.normalMap) material.normalMap.dispose();
+      if (material.roughnessMap) material.roughnessMap.dispose();
+      if (material.metalnessMap) material.metalnessMap.dispose();
+      if (material.aoMap) material.aoMap.dispose();
+      if (material.emissiveMap) material.emissiveMap.dispose();
+    }
+    material.dispose();
+  };
+
+  // FIXED: Better camera animation with proper target
   useEffect(() => {
+    const targetPosition = calculateCameraPosition();
+    const shipModelPos = calculateShipModelPosition();
+
     animationRef.current = {
       progress: 0,
       startPos: camera.position.clone(),
-      targetPos: calculateCameraPosition(),
-      startTarget: new THREE.Vector3(0, 0, 0),
-      endTarget: calculateCameraTarget(),
+      targetPos: targetPosition,
+      startTarget: new THREE.Vector3(0, 0, 0), // Current look target (globe center)
+      endTarget: shipModelPos, // Look at ship model
       isAnimating: true,
     };
-  }, [camera.position, calculateCameraPosition, calculateCameraTarget]);
+  }, [camera.position, calculateCameraPosition, calculateShipModelPosition]);
 
+  // FIXED: Better animation with proper look-at transition
   useFrame(() => {
-    const anim = animationRef.current;
-    if (anim && anim.isAnimating) {
-      anim.progress += ANIMATION_SPEED;
+    if (animationRef.current && animationRef.current.isAnimating) {
+      const animation = animationRef.current;
+      animation.progress += ANIMATION_SPEED;
 
-      camera.position.lerpVectors(anim.startPos, anim.targetPos, anim.progress);
-      const target = new THREE.Vector3().lerpVectors(
-        anim.startTarget,
-        anim.endTarget,
-        anim.progress
+      // Smooth camera position interpolation
+      camera.position.lerpVectors(
+        animation.startPos,
+        animation.targetPos,
+        animation.progress
       );
-      camera.lookAt(target);
 
-      if (anim.progress >= 1) {
-        anim.isAnimating = false;
-        camera.position.copy(anim.targetPos);
-        camera.lookAt(anim.endTarget);
-        loadModel(); // Load after camera settles
+      // Smooth look-at target interpolation
+      const currentTarget = new THREE.Vector3().lerpVectors(
+        animation.startTarget,
+        animation.endTarget,
+        animation.progress
+      );
+      camera.lookAt(currentTarget);
+
+      // Check if animation is complete
+      if (animation.progress >= 1) {
+        camera.position.copy(animation.targetPos);
+        camera.lookAt(animation.endTarget);
+        animation.isAnimating = false;
+
+        // Start loading the model after camera animation completes
+        loadShipModel();
       }
     }
   });
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (modelRef.current) {
-        scene.remove(modelRef.current);
-        disposeModel(modelRef.current);
-        modelRef.current = null;
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+
+      if (shipModelRef.current) {
+        scene.remove(shipModelRef.current);
+        disposeModel(shipModelRef.current);
+        shipModelRef.current = null;
+      }
+
+      if (oceanSurfaceRef.current) {
+        scene.remove(oceanSurfaceRef.current);
+        oceanSurfaceRef.current.geometry.dispose();
+        (oceanSurfaceRef.current.material as THREE.Material).dispose();
+        oceanSurfaceRef.current = null;
+      }
+
+      if (animationRef.current) {
+        animationRef.current.isAnimating = false;
       }
     };
   }, [scene, disposeModel]);
+
+  // Update model position if ship data changes
+  useEffect(() => {
+    if (shipModelRef.current) {
+      const shipModelPosition = calculateShipModelPosition();
+      shipModelRef.current.position.copy(shipModelPosition);
+
+      // Update orientation
+      const normalDirection = shipPosition.clone().normalize();
+      shipModelRef.current.up.copy(normalDirection);
+      const headingRad = THREE.MathUtils.degToRad(shipHeading);
+      const east = new THREE.Vector3(0, 1, 0).cross(normalDirection).normalize();
+      const north = normalDirection.clone().cross(east).normalize();
+      const headingDir = north
+        .clone()
+        .multiplyScalar(Math.cos(headingRad))
+        .add(east.clone().multiplyScalar(Math.sin(headingRad)))
+        .normalize();
+      const lookAtTarget = shipModelRef.current.position.clone().add(headingDir);
+      shipModelRef.current.lookAt(lookAtTarget);
+    }
+  }, [shipPosition, shipHeading, calculateShipModelPosition]);
 
   return null;
 };

@@ -96,6 +96,7 @@ export function Sidebar({
       </div>
 
       <div className="sidebar-body">
+        {/* System Status Panel */}
         <div
           style={{
             background: "rgba(52, 73, 94, 0.8)",
@@ -113,7 +114,7 @@ export function Sidebar({
               marginBottom: "5px",
             }}
           >
-            <span>Status:</span>
+            <span>Network:</span>
             <span style={{ color: isOnline ? "#2ecc71" : "#e74c3c" }}>
               {isOnline ? "Online" : "Offline"}
             </span>
@@ -132,11 +133,13 @@ export function Sidebar({
           )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span>Active Ships:</span>
-            <span>{ships.length}</span>
+            <span style={{ fontWeight: "bold", color: "#3498db" }}>
+              {ships.length}
+            </span>
           </div>
         </div>
 
-        <h3>Active Ships</h3>
+        <h3>Fleet Overview</h3>
 
         {ships.length === 0 ? (
           <div
@@ -145,14 +148,19 @@ export function Sidebar({
               textAlign: "center",
               color: "#95a5a6",
               fontStyle: "italic",
+              background: "rgba(52, 73, 94, 0.5)",
+              borderRadius: "8px",
+              border: "1px dashed #7f8c8d",
             }}
           >
             {connectionStatus === "connecting"
-              ? "Loading ships..."
-              : "No ships available"}
+              ? "🔄 Loading ships..."
+              : connectionStatus === "error"
+              ? "❌ No connection"
+              : "🚢 No ships available"}
           </div>
         ) : (
-          <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+          <div style={{ maxHeight: "350px", overflowY: "auto" }}>
             {ships.map((ship) => {
               const shipStatus = getShipStatus(ship);
               const isSelected = selectedShipId === ship.id;
@@ -163,43 +171,49 @@ export function Sidebar({
                   style={{
                     cursor: "pointer",
                     background: isSelected
-                      ? "rgba(52, 152, 219, 0.2)"
-                      : "transparent",
+                      ? "rgba(52, 152, 219, 0.3)"
+                      : "rgba(52, 73, 94, 0.3)",
                     border: isSelected
-                      ? "1px solid #3498db"
-                      : "1px solid transparent",
-                    borderRadius: "6px",
-                    padding: "8px",
+                      ? "2px solid #3498db"
+                      : "1px solid rgba(127, 140, 141, 0.3)",
+                    borderRadius: "8px",
+                    padding: "10px",
                     marginBottom: "8px",
-                    transition: "all 0.2s ease",
+                    transition: "all 0.3s ease",
+                    boxShadow: isSelected 
+                      ? "0 4px 12px rgba(52, 152, 219, 0.3)"
+                      : "none",
                   }}
                   onClick={() => setSelectedShipId(ship.id)}
                   onMouseOver={(e) => {
                     if (!isSelected) {
                       (e.currentTarget as HTMLDivElement).style.background =
-                        "rgba(255, 255, 255, 0.05)";
+                        "rgba(255, 255, 255, 0.1)";
+                      (e.currentTarget as HTMLDivElement).style.transform = "translateX(4px)";
                     }
                   }}
                   onMouseOut={(e) => {
                     if (!isSelected) {
                       (e.currentTarget as HTMLDivElement).style.background =
-                        "transparent";
+                        "rgba(52, 73, 94, 0.3)";
+                      (e.currentTarget as HTMLDivElement).style.transform = "translateX(0)";
                     }
                   }}
                 >
+                  {/* Ship Header */}
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      marginBottom: "4px",
+                      marginBottom: "6px",
                     }}
                   >
                     <span
                       style={{
-                        fontWeight: isSelected ? "bold" : "normal",
+                        fontWeight: isSelected ? "bold" : "600",
                         color: isSelected ? "#3498db" : "#ecf0f1",
-                        fontSize: "14px",
+                        fontSize: "15px",
                       }}
                     >
                       {ship.id}
@@ -208,47 +222,75 @@ export function Sidebar({
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "4px",
+                        gap: "6px",
                         fontSize: "12px",
+                        background: isSelected ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.2)",
+                        padding: "2px 8px",
+                        borderRadius: "12px",
                       }}
                     >
-                      <span>{shipStatus.icon}</span>
-                      <span style={{ color: shipStatus.color }}>
+                      <span style={{ fontSize: "14px" }}>{shipStatus.icon}</span>
+                      <span style={{ color: shipStatus.color, fontWeight: "600" }}>
                         {shipStatus.status}
                       </span>
                     </div>
                   </div>
 
+                  {/* Ship Details */}
                   <div style={{ fontSize: "11px", color: "#bdc3c7" }}>
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "8px",
+                        marginBottom: "4px",
                       }}
                     >
-                      <span>Speed: {ship.speed || 0} kts</span>
-                      <span>Heading: {ship.heading}°</span>
+                      <span>⚡ {ship.speed || 0} kts</span>
+                      <span>🧭 {ship.heading}°</span>
                     </div>
                     <div
                       style={{
-                        marginTop: "2px",
-                        color: "#95a5a6",
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "8px",
                         fontSize: "10px",
+                        color: "#95a5a6",
                       }}
                     >
-                      Updated: {getTimeSinceUpdate(ship.timestamp)}
+                      <span>📍 {ship.lat.toFixed(2)}°, {ship.lon.toFixed(2)}°</span>
+                      <span>🕒 {getTimeSinceUpdate(ship.timestamp)}</span>
                     </div>
                   </div>
+
+                  {/* Selection Indicator */}
+                  {isSelected && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        padding: "4px 8px",
+                        background: "rgba(52, 152, 219, 0.2)",
+                        borderRadius: "4px",
+                        fontSize: "10px",
+                        color: "#3498db",
+                        fontWeight: "600",
+                        textAlign: "center",
+                      }}
+                    >
+                      🎯 SELECTED - Click "Inspect Vessel" to view details
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
+        {/* Route Information */}
         {selectedShipId && (
           <>
             <h3 style={{ marginTop: "25px" }}>
-              Route Information
+              📍 Route Information
               {route.length > 0 && (
                 <span
                   style={{
@@ -282,9 +324,15 @@ export function Sidebar({
                       marginBottom: "8px",
                       paddingBottom: "5px",
                       borderBottom: "1px solid #34495e",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
                     }}
                   >
-                    Planned Route:
+                    <span>🗺️ Planned Route:</span>
+                    <span style={{ color: "#3498db" }}>
+                      {route.length} stops
+                    </span>
                   </div>
                   {route.map((wp, idx) => (
                     <div
@@ -292,17 +340,37 @@ export function Sidebar({
                       style={{
                         fontSize: "11px",
                         color: "#bdc3c7",
-                        marginBottom: "4px",
-                        padding: "4px 6px",
-                        background: "rgba(0, 0, 0, 0.2)",
+                        marginBottom: "6px",
+                        padding: "6px 8px",
+                        background: idx === 0 
+                          ? "rgba(46, 204, 113, 0.1)" // Green for first waypoint
+                          : idx === route.length - 1
+                          ? "rgba(231, 76, 60, 0.1)" // Red for last waypoint
+                          : "rgba(0, 0, 0, 0.2)",
+                        border: idx === 0 
+                          ? "1px solid rgba(46, 204, 113, 0.3)"
+                          : idx === route.length - 1
+                          ? "1px solid rgba(231, 76, 60, 0.3)"
+                          : "1px solid rgba(127, 140, 141, 0.2)",
                         borderRadius: "4px",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                       }}
                     >
-                      <span>Waypoint {idx + 1}</span>
-                      <span style={{ color: "#95a5a6" }}>
+                      <span style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: "4px" 
+                      }}>
+                        {idx === 0 ? "🟢" : idx === route.length - 1 ? "🔴" : "🔵"} 
+                        Waypoint {idx + 1}
+                      </span>
+                      <span style={{ 
+                        color: "#95a5a6", 
+                        fontFamily: "monospace",
+                        fontSize: "10px",
+                      }}>
                         {wp.latitude.toFixed(3)}°, {wp.longitude.toFixed(3)}°
                       </span>
                     </div>
@@ -315,9 +383,13 @@ export function Sidebar({
                     color: "#95a5a6",
                     fontStyle: "italic",
                     fontSize: "12px",
+                    padding: "20px",
                   }}
                 >
-                  No route data available
+                  📭 No route data available
+                  <div style={{ fontSize: "10px", marginTop: "4px", opacity: 0.7 }}>
+                    Route information will appear when available
+                  </div>
                 </div>
               )}
             </div>

@@ -5,8 +5,7 @@ import { CountryLabels } from "./components/CountryLabels";
 import { CountryBorders } from "./components/CountryBorders";
 import { ShipMarkers } from "./components/ShipMarkers";
 import { Sidebar } from "./components/Sidebar/Sidebar";
-// import SkyToView from "./components/SkyToView";
-// import * as THREE from "three";
+import ShipInspectionScene from "./components/ShipInspectionScene";
 import "./App.css";
 
 interface Ship {
@@ -61,11 +60,105 @@ function Stars() {
   );
 }
 
+// Ship Info Modal Component (Outside Canvas)
+function ShipInfoModal({ 
+  selectedInfo, 
+  onClose, 
+  onInspect 
+}: { 
+  selectedInfo: Ship;
+  onClose: () => void;
+  onInspect: () => void;
+}) {
+  return (
+    <div className="fixed top-20 right-6 z-50 w-80 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          🚢 {selectedInfo.id}
+        </h3>
+        <p className="text-sm opacity-90">Vessel Information</p>
+      </div>
+
+      {/* Ship Image */}
+      <div className="relative">
+        <img
+          src="/assets/ship.jfif"
+          alt="Ship"
+          className="w-full h-32 object-cover"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+      </div>
+
+      {/* Ship Details */}
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">⚡ Speed:</span>
+              <span className="font-semibold text-gray-800">
+                {selectedInfo.speed ?? "N/A"} knots
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">🧭 Heading:</span>
+              <span className="font-semibold text-gray-800">
+                {selectedInfo.heading}°
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">📍 Lat:</span>
+              <span className="font-semibold text-gray-800">
+                {selectedInfo.lat.toFixed(3)}°
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">📍 Lon:</span>
+              <span className="font-semibold text-gray-800">
+                {selectedInfo.lon.toFixed(3)}°
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Status Indicator */}
+        <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-sm font-medium text-gray-700">
+            {selectedInfo.speed && selectedInfo.speed > 0 ? "In Transit" : "Anchored"}
+          </span>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded transition-colors duration-200"
+          >
+            Close
+          </button>
+          <button
+            onClick={onInspect}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors duration-200 flex items-center justify-center gap-2"
+          >
+            🔍 Inspect Vessel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [ships, setShips] = useState<Ship[]>([]);
   const [selectedShipId, setSelectedShipId] = useState<string | null>(null);
   const [route, setRoute] = useState<Waypoint[]>([]);
-  const [viewMode, setViewMode] = useState<"normal" | "skyview">("normal");
+  const [showInspectionScene, setShowInspectionScene] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
@@ -138,7 +231,18 @@ export default function App() {
 
   const handleShipSelection = useCallback((shipId: string) => {
     setSelectedShipId(shipId);
-    setViewMode("normal");
+  }, []);
+
+  const handleViewDetails = useCallback(() => {
+    setShowInspectionScene(true);
+  }, []);
+
+  const handleCloseInspection = useCallback(() => {
+    setShowInspectionScene(false);
+  }, []);
+
+  const handleCloseShipInfo = useCallback(() => {
+    setSelectedShipId(null);
   }, []);
 
   // Network listener
@@ -177,12 +281,13 @@ export default function App() {
     </div>
   );
 
-  const selectedShip = ships.find((s) => s.id === selectedShipId);
+  const selectedInfo = ships.find((s) => s.id === selectedShipId);
 
   return (
     <>
       <div className="w-screen h-screen flex relative bg-black">
         <StatusIndicator />
+        
         <Sidebar
           ships={ships}
           selectedShipId={selectedShipId}
@@ -193,50 +298,7 @@ export default function App() {
           isOnline={isOnline}
         />
 
-        {/* Info Modal in Normal Mode */}
-        {viewMode === "normal" && selectedShip && (
-          <div className="fixed top-20 right-6 z-50 w-80 bg-white rounded-lg shadow-lg p-4 text-sm">
-            <h3 className="text-lg font-bold mb-2">{selectedShip.id}</h3>
-            <p>Speed: {selectedShip.speed || 0} knots</p>
-            <p>Heading: {selectedShip.heading}°</p>
-            <p>
-              Status:{" "}
-              {selectedShip.speed && selectedShip.speed > 0
-                ? "Moving"
-                : "Stationary"}
-            </p>
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => setSelectedShipId(null)}
-                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-1 rounded"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => setViewMode("skyview")}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded"
-              >
-                View Details
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Close button for Sky-To-View */}
-        {viewMode === "skyview" && (
-          <div className="fixed top-4 right-4 z-50">
-            <button
-              onClick={() => {
-                setViewMode("normal");
-                setSelectedShipId(null);
-              }}
-              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded shadow-md transition"
-            >
-              ✕ Exit Sky-To-View
-            </button>
-          </div>
-        )}
-
+        {/* Canvas - ONLY 3D objects */}
         <Canvas camera={{ position: [3, 2, -3], fov: 35 }} className="flex-1">
           <OrbitControls
             zoomSpeed={0.8}
@@ -260,19 +322,27 @@ export default function App() {
             selectedShipId={selectedShipId}
             setSelectedShipId={handleShipSelection}
             route={route}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
           />
-          {/* {viewMode === "skyview" && selectedShip && (
-            <SkyToView
-              shipId={selectedShip.id}
-              shipHeading={selectedShip.heading}
-              shipPosition={new THREE.Vector3()} // Placeholder — actual should come from state
-              onModelLoaded={() => {}}
-              onError={() => {}}
-            />
-          )} */}
         </Canvas>
+
+        {/* Ship Info Modal - OUTSIDE Canvas */}
+        {selectedInfo && !showInspectionScene && (
+          <ShipInfoModal
+            selectedInfo={selectedInfo}
+            onClose={handleCloseShipInfo}
+            onInspect={handleViewDetails}
+          />
+        )}
+
+        {/* Inspection Scene Overlay - OUTSIDE Canvas */}
+        {showInspectionScene && selectedInfo && (
+          <ShipInspectionScene
+            shipId={selectedInfo.id}
+            shipHeading={selectedInfo.heading}
+            onClose={handleCloseInspection}
+            isVisible={showInspectionScene}
+          />
+        )}
       </div>
     </>
   );
