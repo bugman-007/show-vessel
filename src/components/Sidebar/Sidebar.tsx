@@ -45,10 +45,10 @@ export function Sidebar({
   };
 
   // Format timestamp for display
-  const formatTime = (timestamp?: number) => {
-    if (!timestamp) return 'Unknown';
-    return new Date(timestamp).toLocaleTimeString();
-  };
+  // const formatTime = (timestamp?: number) => {
+  //   if (!timestamp) return 'Unknown';
+  //   return new Date(timestamp).toLocaleTimeString();
+  // };
 
   // Calculate time since last update
   const getTimeSinceUpdate = (timestamp?: number) => {

@@ -259,7 +259,7 @@ export function ShipMarkers({ ships, selectedShipId, setSelectedShipId, route }:
   }, [selectedShipId, route]);
 
   // Smooth movement animation loop
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     // useFrame((state, delta) => {
     // const currentTime = Date.now();
     

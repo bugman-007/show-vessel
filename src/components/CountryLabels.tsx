@@ -1,7 +1,7 @@
 import { Text } from "@react-three/drei";
 import { useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Vector3, Euler, Matrix4 } from "three";
+import { Vector3, Euler, Matrix4, Mesh } from "three";
 import { latLonToVector3 } from "../utils/geo";
 
 interface CountryLabel {
@@ -11,7 +11,7 @@ interface CountryLabel {
 
 export function CountryLabels() {
   const [labels, setLabels] = useState<CountryLabel[]>([]);
-  const labelRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const labelRefs = useRef<(Mesh | null)[]>([]);
   const { camera } = useThree();
 
   // Load label data only once
