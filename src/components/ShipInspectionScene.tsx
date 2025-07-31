@@ -162,10 +162,10 @@ function ShipModel() {
     const bobbing = Math.sin(time * 1.2) * 0.01; // Subtle vertical movement
     
     // Gentle pitch motion (bow up/down like going through waves)
-    const pitching = Math.sin(time * 0.8) * 0.03; // Bow dips and rises
+    const pitching = Math.sin(time * 0.8) * 0.02; // Bow dips and rises
     
     // Gentle roll motion (side to side like ocean swell)
-    const rolling = Math.sin(time * 0.6) * 0.02; // Gentle side-to-side roll
+    const rolling = Math.sin(time * 0.6) * 0.01; // Gentle side-to-side roll
     
     // Apply the sailing motions
     groupRef.current.position.y = bobbing; // Vertical bobbing
