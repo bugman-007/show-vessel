@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { useMemo, useState, useCallback } from "react";
-import { useSpring, animated } from "@react-spring/three";
+import { useMemo, useState, useCallback, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Text } from "@react-three/drei";
 import { latLonToVector3 } from "../utils/geo";
 import { ShipRoutes } from "./ShipRoutes";
 
@@ -46,31 +47,98 @@ function ShipMarker({
   handleShipSelect: (ship: ShipMesh) => void;
   isSelected: boolean;
 }) {
-  const { scale } = useSpring({
-    scale: hoveredId === ship.id || isSelected ? 2 : 1,
-    config: { tension: 300, friction: 15 },
+  const groupRef = useRef<THREE.Group>(null);
+  const { camera } = useThree();
+  const [currentScale, setCurrentScale] = useState(1);
+  const targetScaleRef = useRef(1);
+  
+  // Update every frame for both rotation and scale
+  useFrame(() => {
+    if (!groupRef.current) return;
+    
+    // Make marker always face camera (billboard effect)
+    groupRef.current.lookAt(camera.position);
+    
+    // Calculate distance-based scale
+    const distance = camera.position.distanceTo(ship.position);
+    
+    // This formula maintains approximately constant screen size
+    const constantScreenScale = distance * 0.1;
+    
+    // Apply hover/selection multiplier
+    const hoverMultiplier = (hoveredId === ship.id || isSelected) ? 1.3 : 1;
+    targetScaleRef.current = constantScreenScale * hoverMultiplier;
+    
+    // Smooth scale transition
+    setCurrentScale(prev => {
+      const diff = targetScaleRef.current - prev;
+      return prev + diff * 0.15; // Smooth factor
+    });
+    
+    groupRef.current.scale.setScalar(currentScale);
   });
 
-  const baseColor = isSelected ? "#00ff00" : "#ff0000";
-  const hoverColor = isSelected ? "#66ff66" : "#ff6666";
+  const isHovered = hoveredId === ship.id;
+  
+  // Dynamic colors based on state
+  const bgColor = isSelected ? "#00ff00" : isHovered ? "#ff6666" : "#ff0000";
+  const iconColor = isSelected ? "#003300" : "#ffffff";
+  const ringOpacity = isSelected || isHovered ? 0.3 : 0;
 
   return (
-    <animated.mesh
-      key={ship.id}
+    <group
+      ref={groupRef}
       position={[ship.position.x, ship.position.y, ship.position.z]}
-      quaternion={ship.quaternion}
-      scale={scale}
       onPointerOver={() => setHoveredId(ship.id)}
       onPointerOut={() => setHoveredId(null)}
       onClick={() => handleShipSelect(ship)}
     >
-      <coneGeometry args={[0.02, 0.05, 8]} />
-      <meshPhongMaterial
-        color={hoveredId === ship.id ? hoverColor : baseColor}
-        transparent
-        opacity={0.9}
-      />
-    </animated.mesh>
+      {/* Outer ring animation */}
+      <mesh>
+        <ringGeometry args={[0.08, 0.09, 32]} />
+        <meshBasicMaterial 
+          color={bgColor} 
+          transparent 
+          opacity={ringOpacity}
+        />
+      </mesh>
+      
+      {/* Main circle background */}
+      <mesh>
+        <circleGeometry args={[0.06, 32]} />
+        <meshBasicMaterial color={bgColor} />
+      </mesh>
+      
+      {/* Inner circle for contrast */}
+      <mesh position={[0, 0, 0.001]}>
+        <circleGeometry args={[0.05, 32]} />
+        <meshBasicMaterial color={bgColor} opacity={0.9} transparent />
+      </mesh>
+      
+      {/* Ship icon using Text */}
+      <Text
+        position={[0, 0, 0.002]}
+        fontSize={0.06}
+        color={iconColor}
+        anchorX="center"
+        anchorY="middle"
+        fontWeight="bold"
+      >
+        ⚓
+      </Text>
+      
+      {/* Pulse effect for selected ships */}
+      {isSelected && (
+        <mesh scale={[1, 1, 1]}>
+          <ringGeometry args={[0.07, 0.08, 32]} />
+          <meshBasicMaterial 
+            color="#00ff00" 
+            transparent 
+            opacity={0.5}
+          />
+        </mesh>
+      )}
+    </group>
   );
 }
 
