@@ -25,10 +25,10 @@ export function CountryBorders() {
         const fillMeshes: CountryMesh[] = [];
         const lineGeoms: { geometry: THREE.BufferGeometry; position: THREE.Vector3 }[] = [];
 
-        const processPolygon = (polygon: [number, number][]) => { // Fix type annotation
+        const processPolygon = (polygon: [number, number][]) => {
           // Border line geometry
           const borderPoints = polygon.map(([lon, lat]) => {
-            return latLonToVector3(lat, lon, 2.0);
+            return latLonToVector3(lat, lon, 2.0025);
           });
           const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPoints);
 
@@ -37,8 +37,8 @@ export function CountryBorders() {
 
           lineGeoms.push({ geometry: borderGeom, position: centroid });
 
-          // Filled mesh with resampling + triangulation
-          const geom = fixCountryMesh(polygon, 2, 1);
+          // Filled mesh with perfect spherical triangulation
+          const geom = fixCountryMesh(polygon, 2.002, 3); // minSubdivisions = 3
           fillMeshes.push({ geometry: geom, position: centroid });
         };
 
@@ -48,9 +48,9 @@ export function CountryBorders() {
           const coords = feature.geometry.coordinates;
 
           if (type === "Polygon") {
-            coords.forEach((polygon: [number, number][]) => processPolygon(polygon)); // Fix type assertion
+            coords.forEach((polygon: [number, number][]) => processPolygon(polygon));
           } else if (type === "MultiPolygon") {
-            coords.forEach((multiPolygon: [number, number][][]) => // Fix type assertion
+            coords.forEach((multiPolygon: [number, number][][]) =>
               multiPolygon.forEach((polygon) => processPolygon(polygon))
             );
           }
@@ -64,12 +64,14 @@ export function CountryBorders() {
   // Update visibility each frame based on camera position
   useFrame(() => {
     const camDir = camera.position.clone().normalize();
+    
     fillRefs.current.forEach((mesh, i) => {
       if (mesh && fills[i]) {
         const countryDir = fills[i].position.clone().normalize();
-        mesh.visible = camDir.dot(countryDir) > 0.2; // visible if on the near side
+        mesh.visible = camDir.dot(countryDir) > 0.2;
       }
     });
+    
     lineRefs.current.forEach((line, i) => {
       if (line && lines[i]) {
         const countryDir = lines[i].position.clone().normalize();
@@ -80,6 +82,17 @@ export function CountryBorders() {
 
   return (
     <>
+      {/* White backing layer - using clipping for clean look */}
+      <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={1.5}>
+        <sphereGeometry args={[2.00018, 128, 128]} />
+        <meshBasicMaterial
+          color="#FFFFFF"
+          side={THREE.BackSide} // Only render inside face
+          depthWrite={false}
+          depthTest={true}
+        />
+      </mesh>
+
       {/* Filled countries */}
       {fills.map((fill, index) => (
         <mesh
@@ -88,24 +101,33 @@ export function CountryBorders() {
           ref={(el) => {
             if (el) fillRefs.current[index] = el;
           }}
+          renderOrder={2}
         >
           <meshBasicMaterial
-            color="#faf9f2"
-            side={THREE.DoubleSide}
-            polygonOffset
-            polygonOffsetFactor={2}
-            polygonOffsetUnits={10}
-            depthTest
-            depthWrite={false}
+            color="#FFFFFF"
+            side={THREE.FrontSide}
+            depthWrite={true}
+            depthTest={true}
           />
         </mesh>
       ))}
 
-      {/* Border lines using primitive */}
+      {/* Border lines */}
       {lines.map((line, index) => (
         <primitive
           key={`line-${index}`}
-          object={new THREE.Line(line.geometry, new THREE.LineBasicMaterial({ color: "#ffffff" }))}
+          object={(() => {
+            const lineObj = new THREE.Line(
+              line.geometry, 
+              new THREE.LineBasicMaterial({ 
+                color: "#BDBDBD",
+                depthWrite: true,
+                depthTest: true
+              })
+            );
+            lineObj.renderOrder = 3;
+            return lineObj;
+          })()}
           ref={(el: THREE.Line) => {
             if (el) lineRefs.current[index] = el;
           }}

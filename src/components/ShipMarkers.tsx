@@ -81,7 +81,7 @@ function ShipMarker({
   const isHovered = hoveredId === ship.id;
   
   // Dynamic colors based on state
-  const bgColor = isSelected ? "#00ff00" : isHovered ? "#ff6666" : "#ff0000";
+  const bgColor = isSelected ? "#00ff00" : isHovered ? "#ff6666" : "#EA3B3A";
   const iconColor = isSelected ? "#003300" : "#ffffff";
   const ringOpacity = isSelected || isHovered ? 0.3 : 0;
 

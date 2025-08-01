@@ -13,7 +13,6 @@
     "@react-spring/three": "^10.0.1",
     "@react-three/drei": "^10.5.1",
     "@react-three/fiber": "^9.2.0",
-    "@types/earcut": "^3.0.0",
     "axios": "^1.11.0",
     "earcut": "^3.0.2",
     "globe.gl": "^2.42.0",
@@ -24,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
+    "@types/earcut": "^3.0.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react-swc": "^3.10.2",

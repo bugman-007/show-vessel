@@ -73,15 +73,15 @@ export function CountryLabels() {
           ref={(el) => (labelRefs.current[index] = el)}
           position={label.position}
           fontSize={0.04}
-          color="#333333"
+          color="#555555"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.004}
+          outlineWidth={0.002}
           outlineColor="white"
-          outlineOpacity={0.8}
+          outlineOpacity={1}
           fontWeight="bold"
         >
-          {label.name}
+          {label.name.toUpperCase()}
         </Text>
       ))}
     </>

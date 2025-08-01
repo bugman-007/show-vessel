@@ -22,15 +22,17 @@ interface Waypoint {
   longitude: number;
 }
 
+
 function Earth() {
   return (
-    <mesh rotation={[0, Math.PI / 2, 0]}>
+    <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={1}>
       <sphereGeometry args={[2, 64, 64]} />
       <meshPhongMaterial
-        color="#6ec6f5"
-        transparent
-        opacity={0.9}
+        color="#E1E7EA"
+        opacity={1} // Full opacity
+        transparent={false} // No transparency needed
         depthWrite={true}
+        depthTest={true}
       />
     </mesh>
   );

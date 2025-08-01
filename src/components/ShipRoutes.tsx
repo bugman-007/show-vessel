@@ -30,7 +30,7 @@ export function ShipRoutes({ waypoints }: ShipRoutesProps) {
   // Create materials
   const { mainMaterial, glowMaterial } = useMemo(() => {
     const main = new THREE.LineDashedMaterial({
-      color: new THREE.Color("#ff3366"),
+      color: new THREE.Color("#F4BE24"),
       linewidth: 4, // Increased from 2 to 4 for bolder line
       scale: 1,
       dashSize: 0.025, // Slightly larger dashes
@@ -41,7 +41,7 @@ export function ShipRoutes({ waypoints }: ShipRoutesProps) {
     });
 
     const glow = new THREE.LineBasicMaterial({
-      color: new THREE.Color("#ff6699"),
+      color: new THREE.Color("#F4BE24"),
       linewidth: 8, // Increased from 4 to 8 for bolder glow
       opacity: 0.3,
       transparent: true,
@@ -187,14 +187,14 @@ export function ShipRoutes({ waypoints }: ShipRoutesProps) {
         <mesh>
           <sphereGeometry args={[0.012, 32, 32]} />
           <meshPhongMaterial
-            color="#00ff88"
-            emissive="#00ff88"
+            color="##F4BE24"
+            emissive="##F4BE24"
             emissiveIntensity={0.5}
           />
         </mesh>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.018, 0.02, 32]} rotateY={Math.PI / 2}/>
-          <meshBasicMaterial color="#00ff88" side={THREE.DoubleSide} />
+          <meshBasicMaterial color="##F4BE24" side={THREE.DoubleSide} />
         </mesh>
       </group>
 
@@ -203,8 +203,8 @@ export function ShipRoutes({ waypoints }: ShipRoutesProps) {
         <mesh>
           <sphereGeometry args={[0.012, 32, 32]} />
           <meshPhongMaterial
-            color="#ff3366"
-            emissive="#ff3366"
+            color="#F4BE24"
+            emissive="#F4BE24"
             emissiveIntensity={0.5}
           />
         </mesh>
