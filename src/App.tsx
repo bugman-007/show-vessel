@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PointMaterial, Points } from "@react-three/drei";
+import * as THREE from "three";
 import { CountryLabels } from "./components/CountryLabels";
 import { CountryBorders } from "./components/CountryBorders";
 import { ShipMarkers } from "./components/ShipMarkers";
@@ -28,12 +29,13 @@ function Earth() {
     <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={1}>
       <sphereGeometry args={[2, 64, 64]} />
       <meshPhongMaterial
-        color="#E1E7EA"
-        opacity={1} // Full opacity
-        transparent={false} // No transparency needed
-        depthWrite={true}
-        depthTest={true}
-      />
+          color="#E1E7EA"
+          side={THREE.DoubleSide} // Only render inside face
+          // side={THREE.BackSide} // Only render inside face
+          depthWrite={false}
+          depthTest={true}
+        />
+      
     </mesh>
   );
 }
@@ -312,10 +314,9 @@ export default function App() {
             minPolarAngle={(2 * Math.PI) / 7}
             maxPolarAngle={Math.PI / 2}
           />
-          <color attach="background" args={["#375877"]} />
+          <color attach="background" args={["#efefef"]} />
           <Stars />
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 5, 5]} intensity={1} />
+          <ambientLight intensity={2.5} />
           <Earth />
           <CountryBorders />
           <CountryLabels />

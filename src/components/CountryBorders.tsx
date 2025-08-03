@@ -11,7 +11,9 @@ interface CountryMesh {
 
 export function CountryBorders() {
   const [fills, setFills] = useState<CountryMesh[]>([]);
-  const [lines, setLines] = useState<{ geometry: THREE.BufferGeometry; position: THREE.Vector3 }[]>([]);
+  const [lines, setLines] = useState<
+    { geometry: THREE.BufferGeometry; position: THREE.Vector3 }[]
+  >([]);
   const { camera } = useThree();
 
   // References to meshes and lines for visibility updates
@@ -23,17 +25,24 @@ export function CountryBorders() {
       .then((res) => res.json())
       .then((data) => {
         const fillMeshes: CountryMesh[] = [];
-        const lineGeoms: { geometry: THREE.BufferGeometry; position: THREE.Vector3 }[] = [];
+        const lineGeoms: {
+          geometry: THREE.BufferGeometry;
+          position: THREE.Vector3;
+        }[] = [];
 
         const processPolygon = (polygon: [number, number][]) => {
           // Border line geometry
           const borderPoints = polygon.map(([lon, lat]) => {
             return latLonToVector3(lat, lon, 2.0025);
           });
-          const borderGeom = new THREE.BufferGeometry().setFromPoints(borderPoints);
+          const borderGeom = new THREE.BufferGeometry().setFromPoints(
+            borderPoints
+          );
 
           // Approximate centroid for visibility
-          const centroid = borderPoints.reduce((sum, p) => sum.add(p.clone()), new THREE.Vector3()).divideScalar(borderPoints.length);
+          const centroid = borderPoints
+            .reduce((sum, p) => sum.add(p.clone()), new THREE.Vector3())
+            .divideScalar(borderPoints.length);
 
           lineGeoms.push({ geometry: borderGeom, position: centroid });
 
@@ -48,7 +57,9 @@ export function CountryBorders() {
           const coords = feature.geometry.coordinates;
 
           if (type === "Polygon") {
-            coords.forEach((polygon: [number, number][]) => processPolygon(polygon));
+            coords.forEach((polygon: [number, number][]) =>
+              processPolygon(polygon)
+            );
           } else if (type === "MultiPolygon") {
             coords.forEach((multiPolygon: [number, number][][]) =>
               multiPolygon.forEach((polygon) => processPolygon(polygon))
@@ -64,14 +75,14 @@ export function CountryBorders() {
   // Update visibility each frame based on camera position
   useFrame(() => {
     const camDir = camera.position.clone().normalize();
-    
+
     fillRefs.current.forEach((mesh, i) => {
       if (mesh && fills[i]) {
         const countryDir = fills[i].position.clone().normalize();
         mesh.visible = camDir.dot(countryDir) > 0.2;
       }
     });
-    
+
     lineRefs.current.forEach((line, i) => {
       if (line && lines[i]) {
         const countryDir = lines[i].position.clone().normalize();
@@ -85,10 +96,11 @@ export function CountryBorders() {
       {/* White backing layer - using clipping for clean look */}
       <mesh rotation={[0, Math.PI / 2, 0]} renderOrder={1.5}>
         <sphereGeometry args={[2.00018, 128, 128]} />
-        <meshBasicMaterial
+        <meshPhongMaterial
           color="#FFFFFF"
-          side={THREE.BackSide} // Only render inside face
-          depthWrite={false}
+          opacity={1} // Full opacity
+          transparent={false} // No transparency needed
+          depthWrite={true}
           depthTest={true}
         />
       </mesh>
@@ -118,11 +130,11 @@ export function CountryBorders() {
           key={`line-${index}`}
           object={(() => {
             const lineObj = new THREE.Line(
-              line.geometry, 
-              new THREE.LineBasicMaterial({ 
+              line.geometry,
+              new THREE.LineBasicMaterial({
                 color: "#BDBDBD",
                 depthWrite: true,
-                depthTest: true
+                depthTest: true,
               })
             );
             lineObj.renderOrder = 3;
